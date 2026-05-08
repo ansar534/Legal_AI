@@ -23,7 +23,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pydantic import BaseModel, Field
 
 from src.core.config import get_required_env
-from src.core.llm import STRUCTURED_OUTPUT_MODEL, get_llm
+from src.core.llm import DEFAULT_GROQ_MODEL, get_llm
 from src.core.retrievers import format_docs_with_citations
 
 
@@ -320,7 +320,7 @@ def build_courtlistener_chain() -> Runnable:
     """
     Returns a chain: {"question": str, "cases_context": str} → CourtListenerAnswer.
     """
-    llm    = get_llm(model=STRUCTURED_OUTPUT_MODEL, temperature=0.1,
+    llm    = get_llm(model=DEFAULT_GROQ_MODEL, temperature=0.1,
                      max_tokens=4096, json_mode=True)
     parser = PydanticOutputParser(pydantic_object=CourtListenerAnswer)
     return _build_courtlistener_prompt() | llm | parser
@@ -374,7 +374,7 @@ Generate the structured litigation response now.
 
 def build_chain(retriever) -> Runnable:
     """Returns a chain producing a :class:`LitigationAnswer` from local docs."""
-    llm    = get_llm(model=STRUCTURED_OUTPUT_MODEL, temperature=0.1,
+    llm    = get_llm(model=DEFAULT_GROQ_MODEL, temperature=0.1,
                      max_tokens=4096, json_mode=True)
     parser = PydanticOutputParser(pydantic_object=LitigationAnswer)
     prompt = _build_prompt()
@@ -402,7 +402,7 @@ def extract_search_keywords(text: str) -> str:
     Extract 6-8 legal search keywords from *text* using an LLM call.
     Returns a space-separated string suitable for the CourtListener query box.
     """
-    llm = get_llm(model=STRUCTURED_OUTPUT_MODEL, temperature=0.0, max_tokens=128)
+    llm = get_llm(model=DEFAULT_GROQ_MODEL, temperature=0.0, max_tokens=128)
     prompt = ChatPromptTemplate.from_messages(
         [
             (
