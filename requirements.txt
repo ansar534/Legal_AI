@@ -1,0 +1,33 @@
+# Streamlit UI
+streamlit>=1.36
+
+# Environment / config
+python-dotenv
+
+# Data validation
+pydantic>=2
+
+# LangChain ecosystem (used across all feature modules)
+langchain
+langchain-core
+langchain-text-splitters
+langchain-community
+langchain-huggingface
+langchain-chroma
+langchain-classic
+langchain-groq
+
+# Vector store + embeddings
+chromadb
+sentence-transformers
+
+# PDF + CSV loading
+pypdf
+
+# regulations_rag.py specifics
+apify-client
+requests
+groq
+
+# BM25 retriever backing store
+rank-bm25
