@@ -76,7 +76,11 @@ def _get_or_build_retriever(source: DataSource) -> Dict[str, Any]:
 
             status.update(label="Building hybrid retriever...")
             retriever = retrievers.build_hybrid_retriever(
-                vdb, chunks,
+                vdb,
+                chunks,
+                vector_k=4,
+                fetch_k=14,
+                bm25_k=4,
                 filter_filenames=[f.name for f in source.files],
             )
             status.update(label="Ready.", state="complete")

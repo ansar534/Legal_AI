@@ -89,7 +89,10 @@ _CL_OPINION_URL = f"{_CL_BASE_URL}/api/rest/v4/opinions/"
 # Max chars of raw opinion text to download per case.
 _MAX_OPINION_CHARS = 12000
 # Max chars fed to the LLM after BM25 selection (keeps tokens manageable).
-_MAX_EXCERPT_CHARS = 2500
+_MAX_EXCERPT_CHARS = 2000
+# Keep Groq TPM under free-tier caps: large max_tokens + long context
+# blows past per-minute token limits on gpt-oss-120b.
+_LITIGATION_LLM_MAX_TOKENS = 2048
 # Chunk size when BM25-indexing a single opinion.
 _CHUNK_SIZE = 500
 _CHUNK_OVERLAP = 50
@@ -321,7 +324,7 @@ def build_courtlistener_chain() -> Runnable:
     Returns a chain: {"question": str, "cases_context": str} → CourtListenerAnswer.
     """
     llm    = get_llm(model=DEFAULT_GROQ_MODEL, temperature=0.1,
-                     max_tokens=4096, json_mode=True)
+                     max_tokens=_LITIGATION_LLM_MAX_TOKENS, json_mode=True)
     parser = PydanticOutputParser(pydantic_object=CourtListenerAnswer)
     return _build_courtlistener_prompt() | llm | parser
 
@@ -375,7 +378,7 @@ Generate the structured litigation response now.
 def build_chain(retriever) -> Runnable:
     """Returns a chain producing a :class:`LitigationAnswer` from local docs."""
     llm    = get_llm(model=DEFAULT_GROQ_MODEL, temperature=0.1,
-                     max_tokens=4096, json_mode=True)
+                     max_tokens=_LITIGATION_LLM_MAX_TOKENS, json_mode=True)
     parser = PydanticOutputParser(pydantic_object=LitigationAnswer)
     prompt = _build_prompt()
 

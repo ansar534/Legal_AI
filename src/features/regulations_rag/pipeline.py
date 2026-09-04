@@ -27,7 +27,7 @@ from src.core.config import get_required_env, load_env
 
 APIFY_ACTOR_ID = "TWljzbHuXIrynSsKE"
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
-GROQ_MODEL_NAME = "openai/gpt-oss-20b"
+GROQ_MODEL_NAME = "openai/gpt-oss-120b"
 DEFAULT_MAX_APIFY_ITEMS = 20
 DEFAULT_TOP_K = 5
 CHUNK_SIZE = 500  # words per chunk
