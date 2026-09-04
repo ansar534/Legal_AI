@@ -19,7 +19,7 @@ from src.core.config import get_required_env
 
 
 # Default model used by free-text chains (Q&A, audit-report Q&A, etc.).
-DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 
 # Stronger model used by structured (Pydantic) chains. The 20B gpt-oss
 # model is known to silently produce empty completions on complex nested
