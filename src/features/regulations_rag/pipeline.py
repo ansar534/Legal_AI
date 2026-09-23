@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import chromadb
@@ -19,6 +20,7 @@ from groq import Groq
 from sentence_transformers import SentenceTransformer
 
 from src.core.config import get_required_env, load_env
+from src.core.vectordb import get_persistent_client
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +107,27 @@ def _chunk_text(text: str, chunk_size: int = CHUNK_SIZE) -> List[str]:
     ]
 
 
+def _run_attr(run: Any, key: str, default: Any = None) -> Any:
+    """Read a field from an Apify Run model or legacy dict response."""
+    if run is None:
+        return default
+    if isinstance(run, dict):
+        return run.get(key, default)
+    # apify-client v3 returns pydantic Run models (snake_case attrs).
+    snake = "".join(
+        f"_{c.lower()}" if c.isupper() else c for c in key
+    ).lstrip("_") if any(c.isupper() for c in key) else key
+    # Prefer snake_case attribute, then original key, then dict-style.
+    if hasattr(run, snake):
+        return getattr(run, snake)
+    if hasattr(run, key):
+        return getattr(run, key)
+    if hasattr(run, "model_dump"):
+        data = run.model_dump()
+        return data.get(snake, data.get(key, default))
+    return default
+
+
 def _fetch_regulations(
     apify_client: ApifyClient,
     query: str,
@@ -126,21 +149,27 @@ def _fetch_regulations(
 
     on_status(f"Starting Apify actor for query: '{query}'...")
     run = apify_client.actor(APIFY_ACTOR_ID).start(run_input=actor_input)
-    on_status(f"Apify run started (id: {run['id']}). Polling status...")
+    run_id = _run_attr(run, "id")
+    if not run_id:
+        on_status("Apify start returned no run id.")
+        return []
+    on_status(f"Apify run started (id: {run_id}). Polling status...")
 
     while True:
-        run = apify_client.run(run["id"]).get()
-        status = run["status"]
+        run = apify_client.run(run_id).get()
+        status = str(_run_attr(run, "status", "") or "")
         on_status(f"Apify status: {status}")
-        if status in ("SUCCEEDED", "FAILED", "ABORTED"):
+        if status in ("SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"):
             break
         time.sleep(5)
 
-    if run["status"] != "SUCCEEDED":
-        on_status(f"Apify run did not succeed: {run['status']}")
+    if str(_run_attr(run, "status", "")) != "SUCCEEDED":
+        on_status(f"Apify run did not succeed: {_run_attr(run, 'status')}")
         return []
 
-    dataset_id = run.get("defaultDatasetId")
+    dataset_id = _run_attr(run, "defaultDatasetId") or _run_attr(
+        run, "default_dataset_id"
+    )
     if not dataset_id:
         return []
 
@@ -258,7 +287,7 @@ def run_regulations_search(
         doc_texts, convert_to_numpy=True, show_progress_bar=False
     )
 
-    chroma_client = chromadb.PersistentClient(path=chroma_dir)
+    chroma_client = get_persistent_client(Path(chroma_dir))
     collection = _reset_collection(chroma_client, CHROMA_COLLECTION_NAME)
     collection.add(
         ids=[d["id"] for d in docs],

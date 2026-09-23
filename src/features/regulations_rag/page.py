@@ -36,6 +36,68 @@ SPEC = FeatureSpec(
 _RESULT_KEY = "regulations_rag__last_result"
 _LOG_KEY = "regulations_rag__last_log"
 
+# Starter watchlist of U.S. federal bodies commonly tracked on regulations.gov.
+# Example search terms are suggestions for the main query box / agency filter.
+REGULATORY_WATCHLIST = [
+    {
+        "area": "Securities / markets",
+        "bodies": "SEC, CFTC, FINRA",
+        "examples": "disclosure requirements; swap dealing; broker-dealer conduct",
+    },
+    {
+        "area": "Consumer / privacy",
+        "bodies": "FTC, CFPB, HHS OCR",
+        "examples": "unfair trade practices; consumer credit; HIPAA privacy",
+    },
+    {
+        "area": "Workplace / safety",
+        "bodies": "OSHA, DOL, EEOC",
+        "examples": "workplace safety standards; FLSA overtime; discrimination",
+    },
+    {
+        "area": "Health / pharma",
+        "bodies": "FDA, CMS",
+        "examples": "drug labeling; medical devices; Medicare reimbursement",
+    },
+    {
+        "area": "Environment",
+        "bodies": "EPA",
+        "examples": "PFAS; Clean Air Act; hazardous waste",
+    },
+    {
+        "area": "Finance / AML",
+        "bodies": "FinCEN, OCC, FDIC, Federal Reserve",
+        "examples": "Bank Secrecy Act; capital requirements; deposit insurance",
+    },
+    {
+        "area": "Tech / communications",
+        "bodies": "FCC, NIST, CISA",
+        "examples": "spectrum rules; cybersecurity frameworks; critical infrastructure",
+    },
+    {
+        "area": "Trade / export",
+        "bodies": "BIS (Commerce), OFAC",
+        "examples": "export controls; sanctions; entity list",
+    },
+    {
+        "area": "Tax",
+        "bodies": "IRS",
+        "examples": "treasury regulations; information reporting",
+    },
+]
+
+
+def _render_watchlist_sidebar() -> None:
+    st.sidebar.markdown("### Regulatory bodies to track")
+    st.sidebar.caption(
+        "Starter U.S. federal watchlist. Use an agency name in the filter "
+        "above (e.g. EPA, FDA) or put the example terms in your question."
+    )
+    for item in REGULATORY_WATCHLIST:
+        with st.sidebar.expander(item["area"], expanded=False):
+            st.markdown(f"**Bodies:** {item['bodies']}")
+            st.caption(f"Example searches: {item['examples']}")
+
 
 def _render_result(result: RegulationsAnswer) -> None:
     st.markdown("### Answer")
@@ -87,6 +149,8 @@ def render() -> None:
         key="regulations_rag__top_k",
     )
 
+    _render_watchlist_sidebar()
+
     if st.sidebar.button("Clear last result"):
         st.session_state.pop(_RESULT_KEY, None)
         st.session_state.pop(_LOG_KEY, None)
@@ -118,8 +182,6 @@ def render() -> None:
             def _on_status(msg: str) -> None:
                 log_lines.append(msg)
 
-            chroma_dir = str(PROJECT_ROOT / ".chromadb")
-
             with st.status("Running live regulations search...", expanded=True) as status:
                 status_placeholder = st.empty()
 
@@ -135,7 +197,7 @@ def render() -> None:
                         agency_id=agency_id.strip(),
                         max_items=max_items,
                         top_k=top_k,
-                        chroma_dir=chroma_dir,
+                        chroma_dir=str(PROJECT_ROOT / ".chromadb"),
                         on_status=_wrapped_status,
                     )
                     status.update(label="Search complete.", state="complete")

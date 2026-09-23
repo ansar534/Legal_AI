@@ -585,6 +585,8 @@ The two-tier LLM strategy exists because `gpt-oss-20b` is known to produce empty
 | `APIFY_TOKEN` | Regulations RAG | Apify platform token |
 | `REGULATIONS_API_KEY` | Regulations RAG | regulations.gov API key (defaults to `DEMO_KEY`) |
 
+See [`.env.example`](.env.example) and [`DEPLOY.md`](DEPLOY.md) for a simple VM/local host with on-disk Chroma.
+
 ---
 
 ## Architectural Diagram

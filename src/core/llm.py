@@ -21,11 +21,11 @@ from src.core.config import get_required_env
 # Default model used by free-text chains (Q&A, audit-report Q&A, etc.).
 DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 
-# Stronger model used by structured (Pydantic) chains. The 20B gpt-oss
-# model is known to silently produce empty completions on complex nested
-# JSON output - llama-3.3-70b is markedly more reliable at structured
-# output and is fast on Groq.
-STRUCTURED_OUTPUT_MODEL = "llama-3.3-70b-versatile"
+# Model used by structured (Pydantic) chains. Groq retired
+# llama-3.3-70b-versatile (2026-08-16); openai/gpt-oss-120b is the
+# recommended replacement and is more reliable than gpt-oss-20b for
+# nested JSON output.
+STRUCTURED_OUTPUT_MODEL = "openai/gpt-oss-120b"
 
 
 @lru_cache(maxsize=16)

@@ -3,7 +3,6 @@ Legal AI Hub - Streamlit entry point.
 
 Run with::
 
-    cd Legal_AI_Project
     streamlit run streamlit_app.py
 
 Pages are discovered automatically from ``src/features/__init__.py``'s

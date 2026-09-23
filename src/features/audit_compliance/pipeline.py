@@ -313,9 +313,9 @@ def build_audit_report_chain(retriever) -> Runnable:
     """
     Returns a chain that produces an :class:`AuditReport` Pydantic object.
 
-    Uses a stronger model (llama-3.3-70b) with Groq's JSON mode and a
-    generous max_tokens budget. The default ``openai/gpt-oss-20b`` is
-    known to silently produce empty output on this nested schema.
+    Uses STRUCTURED_OUTPUT_MODEL with Groq's JSON mode and a
+    generous max_tokens budget. Prefer openai/gpt-oss-120b over
+    gpt-oss-20b for this nested schema (20B often returned empty output).
 
     Invoke with an empty dict::
 

@@ -9,8 +9,10 @@ Differs from the other features:
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
+import pandas as pd
 import streamlit as st
 
 from src.core import chunking, loaders, retrievers, vectordb
@@ -22,6 +24,7 @@ from src.features.contract_risk.pipeline import build_chain
 
 KB_FOLDER = DATA_DIR / "Contract_Risk"
 KB_COLLECTION = "contract_risk"
+KB_CSV_PATH = KB_FOLDER / "legal_contract_clauses.csv"
 
 
 SPEC = FeatureSpec(
@@ -171,6 +174,89 @@ def _get_or_build_contract(uploaded_file) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Browse risky clauses (CSV explorer)
+# ---------------------------------------------------------------------------
+
+@lru_cache(maxsize=1)
+def _load_clauses_dataframe() -> pd.DataFrame:
+    """Load the curated clause risk matrix from disk."""
+    if not KB_CSV_PATH.exists():
+        raise FileNotFoundError(f"Clause CSV missing: {KB_CSV_PATH}")
+    df = pd.read_csv(KB_CSV_PATH)
+    expected = {"clause_text", "clause_type", "risk_level"}
+    missing = expected - set(df.columns)
+    if missing:
+        raise ValueError(f"Clause CSV missing columns: {sorted(missing)}")
+    df = df.dropna(subset=["clause_text"]).copy()
+    df["risk_level"] = df["risk_level"].astype(str).str.strip().str.lower()
+    df["clause_type"] = df["clause_type"].astype(str).str.strip()
+    return df
+
+
+def _render_clause_browser() -> None:
+    """Filterable table over the risky-clause knowledge base CSV."""
+    with st.expander("Browse risky clauses", expanded=False):
+        try:
+            df = _load_clauses_dataframe()
+        except Exception as exc:  # noqa: BLE001
+            st.warning(f"Could not load clause browser: {exc}")
+            return
+
+        st.caption(
+            f"{len(df):,} clauses in `{KB_CSV_PATH.name}`. "
+            "Filter below to inspect the knowledge base without asking the LLM."
+        )
+
+        levels = sorted(df["risk_level"].dropna().unique().tolist())
+        types = sorted(df["clause_type"].dropna().unique().tolist())
+
+        col_level, col_type, col_search = st.columns([1, 2, 2])
+        with col_level:
+            selected_levels = st.multiselect(
+                "Risk level",
+                options=levels,
+                default=["high"] if "high" in levels else levels[:1],
+                key="contract_risk__browse_levels",
+            )
+        with col_type:
+            selected_types = st.multiselect(
+                "Clause type",
+                options=types,
+                default=[],
+                key="contract_risk__browse_types",
+                help="Leave empty to include all clause types.",
+            )
+        with col_search:
+            text_query = st.text_input(
+                "Search clause text",
+                value="",
+                key="contract_risk__browse_search",
+                placeholder="e.g. uncapped liability",
+            )
+
+        filtered = df
+        if selected_levels:
+            filtered = filtered[filtered["risk_level"].isin(selected_levels)]
+        if selected_types:
+            filtered = filtered[filtered["clause_type"].isin(selected_types)]
+        if text_query.strip():
+            needle = text_query.strip().lower()
+            filtered = filtered[
+                filtered["clause_text"].astype(str).str.lower().str.contains(
+                    needle, na=False, regex=False
+                )
+            ]
+
+        st.caption(f"Showing {len(filtered):,} of {len(df):,} clauses.")
+        st.dataframe(
+            filtered[["risk_level", "clause_type", "clause_text"]],
+            use_container_width=True,
+            hide_index=True,
+            height=320,
+        )
+
+
+# ---------------------------------------------------------------------------
 # Chat
 # ---------------------------------------------------------------------------
 
@@ -263,6 +349,8 @@ def render() -> None:
             f"({len(kb_bundle['chunks'])} chunks). "
             f"Upload a contract from the sidebar to add it as a second source."
         )
+
+    _render_clause_browser()
 
     contract_retriever = contract_bundle["retriever"] if contract_bundle else None
     _render_chat(kb_bundle["retriever"], contract_retriever)
