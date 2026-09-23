@@ -32,8 +32,6 @@ class FeatureSpec:
     description: str = ""
     # Optional override for where the feature's persistent Chroma collection
     # lives on disk. When ``None`` the shared ``chromadb/`` directory is used.
-    # ``litigation`` keeps its existing ``vector_store/litigation_support`` so
-    # previously-built embeddings are reused.
     custom_persist_path: Optional[Path] = None
 
     @property

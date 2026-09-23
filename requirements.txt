@@ -31,3 +31,6 @@ groq
 
 # BM25 retriever backing store
 rank-bm25
+
+# Contract risk CSV browser
+pandas
