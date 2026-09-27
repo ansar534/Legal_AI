@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Legal AI Hub</title>
+  <meta name="description" content="A local legal-document assistant. Streamlit tools for contract Q&A, policies, contract risk, litigation support, compliance audits, and live regulations.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,640&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #f3efe4;
+      --ink: #1c1914;
+      --muted: #5e584e;
+      --line: #d9d0c0;
+      --card: #fbf8f1;
+      --seal: #8d3428;
+      --seal-soft: #f3e4df;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at 100% -10%, #efe4d2 0%, transparent 55%),
+        var(--paper);
+      font-family: "Source Sans 3", "Segoe UI", sans-serif;
+      font-size: 1.125rem;
+      line-height: 1.55;
+    }
+
+    a { color: var(--seal); }
+
+    .wrap {
+      width: min(1080px, calc(100% - 2.5rem));
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1.25rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .mark {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      color: inherit;
+      text-decoration: none;
+      font-family: Fraunces, Georgia, serif;
+      font-weight: 640;
+      letter-spacing: -0.02em;
+    }
+
+    .seal {
+      width: 1.7rem;
+      height: 1.7rem;
+      border-radius: 50%;
+      background: var(--seal);
+      box-shadow: inset 0 0 0 3px var(--paper), inset 0 0 0 5px var(--seal);
+    }
+
+    nav { display: flex; gap: 1.1rem; }
+
+    nav a {
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    nav a:hover { color: var(--seal); }
+
+    .hero { padding: 4.2rem 0 2.5rem; }
+
+    .kicker {
+      margin: 0 0 0.8rem;
+      color: var(--seal);
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3 { font-family: Fraunces, Georgia, serif; font-weight: 560; letter-spacing: -0.03em; }
+
+    h1 {
+      margin: 0;
+      max-width: 14ch;
+      font-size: clamp(3rem, 7vw, 5.4rem);
+      line-height: 0.95;
+    }
+
+    .lede {
+      max-width: 42rem;
+      margin: 1.4rem 0 0;
+      color: var(--muted);
+      font-size: 1.3rem;
+    }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.8rem; }
+
+    .button, .button-quiet {
+      display: inline-block;
+      padding: 0.7rem 1rem;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .button { background: var(--ink); color: var(--paper); }
+    .button-quiet { color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+
+    .notice {
+      margin: 0.5rem 0 3rem;
+      padding: 0.95rem 1.1rem;
+      background: var(--seal-soft);
+      border-left: 4px solid var(--seal);
+    }
+
+    section { padding: 0.5rem 0 3.2rem; }
+
+    h2 { margin: 0 0 0.4rem; font-size: 2.2rem; }
+
+    .section-note { margin: 0 0 1.4rem; color: var(--muted); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.9rem;
+    }
+
+    article {
+      padding: 1.15rem 1.2rem 1.2rem;
+      background: var(--card);
+      border: 1px solid var(--line);
+    }
+
+    article h3 { margin: 0.35rem 0 0.4rem; font-size: 1.45rem; }
+    article p { margin: 0; color: var(--muted); }
+
+    .num {
+      color: var(--seal);
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .steps li {
+      padding-top: 0.8rem;
+      border-top: 2px solid var(--ink);
+    }
+
+    .steps strong { display: block; margin-bottom: 0.3rem; font-family: Fraunces, Georgia, serif; font-size: 1.25rem; }
+    .steps span { color: var(--muted); }
+
+    pre {
+      margin: 1.2rem 0 0;
+      padding: 1rem 1.1rem;
+      overflow-x: auto;
+      color: #f6f1e7;
+      background: #231f1a;
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1.4rem 0 2rem;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    @media (max-width: 760px) {
+      .grid, .steps { grid-template-columns: 1fr; }
+      header, footer { align-items: flex-start; flex-direction: column; }
+      .hero { padding-top: 2.6rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a class="mark" href="#top"><span class="seal" aria-hidden="true"></span> Legal AI Hub</a>
+      <nav>
+        <a href="#tools">Tools</a>
+        <a href="#how">How it works</a>
+        <a href="https://github.com/ansar534/Legal_AI">Source</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <p class="kicker">Local document assistant</p>
+        <h1>Read the record. Cite the page.</h1>
+        <p class="lede">
+          Legal AI Hub is a Streamlit app for questions over contracts, policies,
+          case files, and regulations. It retrieves the relevant passages, then
+          asks a language model to answer with file and page citations. Documents
+          and vector indexes stay on the machine that runs the app.
+        </p>
+        <div class="actions">
+          <a class="button" href="https://github.com/ansar534/Legal_AI">View the repository</a>
+          <a class="button-quiet" href="#run">Run it locally</a>
+        </div>
+      </section>
+
+      <p class="notice">
+        This site is the public project page. The assistant itself is a Python
+        app and does not run in the browser. Answers are a research aid, not legal advice.
+      </p>
+
+      <section id="tools">
+        <h2>Six tools</h2>
+        <p class="section-note">Each tool uses the same sidebar: files already in <code>data/</code>, or a file you upload.</p>
+        <div class="grid">
+          <article>
+            <div class="num">01</div>
+            <h3>Contract Q&amp;A</h3>
+            <p>Questions over contract text, organized as rights, obligations, risks, and exceptions.</p>
+          </article>
+          <article>
+            <div class="num">02</div>
+            <h3>Policies Q&amp;A</h3>
+            <p>Questions over company and regulatory policy PDFs, with citations back to the source.</p>
+          </article>
+          <article>
+            <div class="num">03</div>
+            <h3>Contract Risk Analyzer</h3>
+            <p>Flags risky clauses against a curated knowledge base, and can cross-check a contract you upload.</p>
+          </article>
+          <article>
+            <div class="num">04</div>
+            <h3>Litigation Support</h3>
+            <p>Searches local case documents and live CourtListener opinions, then returns a structured answer.</p>
+          </article>
+          <article>
+            <div class="num">05</div>
+            <h3>Compliance Audit</h3>
+            <p>Builds an audit report of gaps, discrepancies, outdated procedures, and an overall rating.</p>
+          </article>
+          <article>
+            <div class="num">06</div>
+            <h3>Regulations Search</h3>
+            <p>Pulls live U.S. federal documents from regulations.gov, embeds them, and answers in one pass.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="how">
+        <h2>How an answer is produced</h2>
+        <p class="section-note">The same path is used by the document tools. Live search adds CourtListener or regulations.gov before that index step.</p>
+        <ol class="steps">
+          <li><strong>Load and split</strong><span>PDFs, text, and CSV rows are cut into overlapping chunks so a clause is not lost at a boundary.</span></li>
+          <li><strong>Index locally</strong><span>Chunks are embedded with all-MiniLM-L6-v2 and stored in Chroma on disk. An existing collection is reused.</span></li>
+          <li><strong>Retrieve and answer</strong><span>Keyword and semantic search pick the passages. Groq writes the answer from those passages only.</span></li>
+        </ol>
+      </section>
+
+      <section id="run">
+        <h2>Run it locally</h2>
+        <p class="section-note">You need Python 3.11 or newer, a <code>GROQ_API_KEY</code>, and the documents you want to search. CourtListener and Apify keys are only required for the live search tools.</p>
+        <pre><code>python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+streamlit run streamlit_app.py</code></pre>
+      </section>
+    </main>
+
+    <footer>
+      <span>Legal AI Hub</span>
+      <a href="https://github.com/ansar534/Legal_AI">github.com/ansar534/Legal_AI</a>
+    </footer>
+  </div>
+</body>
+</html>
