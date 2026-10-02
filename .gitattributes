@@ -1,0 +1,9 @@
+# Shell scripts and container recipes must keep LF endings. A CRLF checkout on
+# Windows produces `/bin/sh: syntax error` or `bad interpreter` when the file is
+# later run inside a Linux container or on the VM.
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+Dockerfile.*    text eol=lf
+.dockerignore   text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
