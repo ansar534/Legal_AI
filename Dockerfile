@@ -19,8 +19,9 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install the CPU-only PyTorch build before anything else. sentence-transformers
-# would otherwise pull the default CUDA wheel, which drags in ~2.5 GB of NVIDIA
-# runtime libraries this app can never use (embeddings are pinned to device=cpu).
+# would otherwise pull the default CUDA wheel: measured at 3.2 GB of nvidia/*
+# libraries plus 897 MB of triton, none of which this app can execute, since
+# src/core/embeddings.py pins device="cpu". Largest single size win here.
 RUN pip install --no-cache-dir \
       --index-url https://download.pytorch.org/whl/cpu \
       torch
@@ -98,7 +99,7 @@ FROM python:3.12-slim AS runtime
 
 LABEL org.opencontainers.image.title="Legal AI Hub" \
       org.opencontainers.image.description="Streamlit RAG workbench for legal document analysis" \
-      org.opencontainers.image.source="https://github.com/ansar/Legal_AI" \
+      org.opencontainers.image.source="https://github.com/ansar534/Legal_AI" \
       org.opencontainers.image.licenses="MIT"
 
 # libgomp1 is the OpenMP runtime that the CPU PyTorch wheel links against.
