@@ -16,5 +16,7 @@ venv/
 .imgscan.*.tar
 *.log
 
-# Slide PNGs re-rendered from the deck on demand
+# Local-only slide artifacts: the deck, its generator and the rendered PNGs.
 docs/_preview/
+docs/Milestone3_Legal_AI.pptx
+scripts/make_milestone3_ppt.py
