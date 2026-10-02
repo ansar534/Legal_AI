@@ -1,0 +1,61 @@
+# Legal AI Hub — single compose file used on both the laptop and the Azure VM.
+#
+#   Laptop : docker compose up --build
+#   VM     : docker compose pull && docker compose up -d --no-build
+#
+# REGISTRY / TAG come from .env (or the shell) so the exact same file resolves
+# to the exact same image reference in both places.
+
+services:
+  app:
+    image: ${REGISTRY:-legalai.azurecr.io}/legal-ai-hub:${TAG:-v1}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: legal-ai-hub
+    restart: unless-stopped
+    ports:
+      - "${HOST_PORT:-8501}:8501"
+    # Secrets are injected at run time only. Nothing here is in the image.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      COURTLISTENER_API_KEY: ${COURTLISTENER_API_KEY:-}
+      APIFY_TOKEN: ${APIFY_TOKEN:-}
+      REGULATIONS_API_KEY: ${REGULATIONS_API_KEY:-DEMO_KEY}
+    volumes:
+      # Vector indexes are the only mutable state; they survive image upgrades.
+      # The app keeps three separate index roots, so each gets its own volume.
+      - chroma-data:/app/chromadb          # contract Q&A, policies, audit, risk
+      - litigation-data:/app/vector_store  # litigation support
+      - regulations-data:/app/.chromadb    # live regulations search
+    networks:
+      - legal-ai-net
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import urllib.request, sys
+          sys.exit(0 if urllib.request.urlopen("http://127.0.0.1:8501/_stcore/health", timeout=4).status == 200 else 1)
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+
+volumes:
+  chroma-data:
+    name: legal-ai-chroma
+  litigation-data:
+    name: legal-ai-litigation
+  regulations-data:
+    name: legal-ai-regulations
+
+networks:
+  legal-ai-net:
+    name: legal-ai-net
+    driver: bridge

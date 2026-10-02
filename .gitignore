@@ -1,4 +1,5 @@
 .env
+.env.local
 chromadb/
 .chromadb/
 vector_store/
@@ -10,3 +11,7 @@ __pycache__/
 .mypy_cache/
 .venv/
 venv/
+
+# Image scan tarballs produced by scripts/verify-no-secrets.sh
+.imgscan.*.tar
+*.log

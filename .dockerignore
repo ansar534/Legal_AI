@@ -1,0 +1,75 @@
+# ---------------------------------------------------------------------------
+# Build context exclusions.
+# Anything listed here never reaches the Docker daemon, so it can never be
+# baked into a layer — not even an intermediate one that is later deleted.
+# ---------------------------------------------------------------------------
+
+# Secrets. The image must be built with zero credentials inside it; keys are
+# supplied at run time via env_file / -e.
+# No exception is made for .env.example. It is a template that developers edit
+# in place, so treating it as safe-by-name is exactly how real keys get shipped.
+# Nothing in the image needs it.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+.azure/
+.aws/
+.ssh/
+
+# Version control and CI metadata (~90 MB of history, useless at run time).
+.git
+.github
+.gitignore
+.gitattributes
+
+# Generated vector stores. These are rebuilt on first use and live on a
+# Docker volume, not in the image.
+chromadb/
+.chromadb/
+vector_store/
+
+# Python build and cache artifacts from the host. Host-built bytecode targets
+# a different interpreter path and would shadow the image's own.
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Host virtualenvs. Linux-incompatible binaries and the single largest
+# accidental-bloat risk in the context.
+venv/
+.venv/
+env/
+
+# Build and run logs. Harmless in size but they can contain stack traces,
+# hostnames and registry URLs, and they change on every build, which needlessly
+# invalidates the COPY layer cache.
+*.log
+
+# Editor, OS and tooling noise.
+.vscode/
+.idea/
+.cursor/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Docs and container recipes — not needed by the running process.
+docs/
+*.md
+!README.md
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+LICENSE
