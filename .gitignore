@@ -15,3 +15,6 @@ venv/
 # Image scan tarballs produced by scripts/verify-no-secrets.sh
 .imgscan.*.tar
 *.log
+
+# Slide PNGs re-rendered from the deck on demand
+docs/_preview/
