@@ -12,17 +12,13 @@ __pycache__/
 .venv/
 venv/
 
-# Image scan tarballs produced by scripts/verify-no-secrets.sh
 .imgscan.*.tar
 *.log
 
-# Local-only slide artifacts, write-ups and submission packet.
+# Local-only slide artifacts. Keep docs/index.html and docs/.nojekyll for GitHub Pages.
 docs/_preview/
 docs/Milestone3_Legal_AI.pptx
 docs/Milestone3_*.docx
 docs/Milestone3_*.pdf
 docs/submission/
-scripts/make_milestone3_ppt.py
-scripts/make_milestone3_analysis_doc.py
-scripts/verify-no-secrets.sh
 docs/MILESTONE3_*.md
