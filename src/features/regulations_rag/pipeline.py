@@ -10,17 +10,15 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-import chromadb
+import numpy as np
 import requests
 from apify_client import ApifyClient
 from groq import Groq
-from sentence_transformers import SentenceTransformer
 
 from src.core.config import get_required_env, load_env
-from src.core.vectordb import get_persistent_client
+from src.core.embeddings import get_embeddings
 
 
 # ---------------------------------------------------------------------------
@@ -28,12 +26,10 @@ from src.core.vectordb import get_persistent_client
 # ---------------------------------------------------------------------------
 
 APIFY_ACTOR_ID = "TWljzbHuXIrynSsKE"
-EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 GROQ_MODEL_NAME = "openai/gpt-oss-120b"
 DEFAULT_MAX_APIFY_ITEMS = 20
 DEFAULT_TOP_K = 5
 CHUNK_SIZE = 500  # words per chunk
-CHROMA_COLLECTION_NAME = "regulations_rag"
 
 
 # ---------------------------------------------------------------------------
@@ -219,14 +215,6 @@ def _build_documents(
     return docs
 
 
-def _reset_collection(chroma: chromadb.ClientAPI, name: str):
-    try:
-        chroma.delete_collection(name=name)
-    except Exception:
-        pass
-    return chroma.create_collection(name=name)
-
-
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -237,7 +225,6 @@ def run_regulations_search(
     agency_id: str = "",
     max_items: int = DEFAULT_MAX_APIFY_ITEMS,
     top_k: int = DEFAULT_TOP_K,
-    chroma_dir: str = ".chromadb",
     on_status: Optional[StatusCallback] = None,
 ) -> RegulationsAnswer:
     """
@@ -279,34 +266,20 @@ def run_regulations_search(
             sources=[],
         )
 
-    # Stage 3: embed + store
+    # Stage 3: embed. These chunks are fetched fresh for every question, so
+    # they are searched in memory rather than stored anywhere.
     status(f"Embedding {len(docs)} chunks...")
-    embedder = SentenceTransformer(EMBEDDING_MODEL_NAME)
+    embedder = get_embeddings()
     doc_texts = [d["text"] for d in docs]
-    doc_embeddings = embedder.encode(
-        doc_texts, convert_to_numpy=True, show_progress_bar=False
-    )
+    doc_embeddings = np.asarray(embedder.embed_documents(doc_texts), dtype=np.float32)
 
-    chroma_client = get_persistent_client(Path(chroma_dir))
-    collection = _reset_collection(chroma_client, CHROMA_COLLECTION_NAME)
-    collection.add(
-        ids=[d["id"] for d in docs],
-        documents=doc_texts,
-        embeddings=[e.tolist() for e in doc_embeddings],
-        metadatas=[d["metadata"] for d in docs],
-    )
-    status(f"Stored {len(docs)} chunks in ChromaDB.")
-
-    # Stage 4: search
+    # Stage 4: search. Embeddings are L2-normalised, so the dot product is
+    # the cosine similarity.
     status(f"Searching for top {top_k} relevant chunks...")
-    q_emb = embedder.encode([query], convert_to_numpy=True)[0]
-    result = collection.query(
-        query_embeddings=[q_emb.tolist()],
-        n_results=top_k,
-        include=["documents", "metadatas", "distances"],
-    )
-    retrieved_docs = result.get("documents", [[]])[0]
-    retrieved_meta = result.get("metadatas", [[]])[0]
+    q_emb = np.asarray(embedder.embed_query(query), dtype=np.float32)
+    best = np.argsort(-(doc_embeddings @ q_emb))[:top_k]
+    retrieved_docs = [doc_texts[i] for i in best]
+    retrieved_meta = [docs[i]["metadata"] for i in best]
     if not retrieved_docs:
         return RegulationsAnswer(
             query=query,

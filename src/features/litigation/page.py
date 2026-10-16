@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import streamlit as st
 
 from src.core import chunking, loaders, retrievers, ui, vectordb
-from src.core.config import DATA_DIR, PROJECT_ROOT
+from src.core.config import DATA_DIR
 from src.core.schemas import DataSource
 from src.features import FeatureSpec
 from src.features.litigation.pipeline import (
@@ -24,8 +24,6 @@ from src.features.litigation.pipeline import (
 )
 
 
-LITIGATION_PERSIST_PATH = PROJECT_ROOT / "vector_store" / "litigation_support"
-
 SPEC = FeatureSpec(
     key="litigation",
     title="Litigation Support",
@@ -38,7 +36,6 @@ SPEC = FeatureSpec(
         "Find precedents, legal risks, and recommendations for litigation "
         "questions. Returns a structured answer with cited sources."
     ),
-    custom_persist_path=LITIGATION_PERSIST_PATH,
 )
 
 _RETRIEVER_KEY  = "litigation__retriever_bundle"
@@ -57,21 +54,13 @@ def _get_or_build_retriever(source: DataSource) -> Dict[str, Any]:
     if bundle and bundle.get("signature") == sig:
         return bundle
 
-    with st.status("Indexing litigation documents...", expanded=True) as status:
+    with st.status("Loading litigation documents from the database...", expanded=True) as status:
         try:
-            status.update(label="Loading PDFs...")
-            docs = loaders.load_files_dispatch(source.files)
-            st.write(f"Loaded {len(docs)} pages from {len(source.files)} file(s).")
-
-            status.update(label="Splitting into chunks...")
-            chunks = chunking.split_documents(docs, chunk_size=1200, chunk_overlap=200)
-            st.write(f"Created {len(chunks)} chunks.")
-
-            status.update(label="Building / loading vector store...")
-            vdb = vectordb.get_or_create_vectordb(
-                chunks=chunks,
-                persist_path=source.persist_path,
-                collection_name=source.collection_name,
+            vdb, chunks = vectordb.index_files(
+                source.collection_name,
+                source.files,
+                lambda docs: chunking.split_documents(docs, chunk_size=1200, chunk_overlap=200),
+                on_progress=st.write,
             )
 
             status.update(label="Building hybrid retriever...")

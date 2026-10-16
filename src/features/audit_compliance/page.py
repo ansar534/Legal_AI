@@ -1,7 +1,7 @@
 """
 Streamlit page for the Compliance Audit Generator.
 
-Wires the source picker -> loaders -> vector DB -> retriever, then renders
+Wires the source picker -> PostgreSQL vector store -> retriever, then renders
 two tabs: a structured "Generate Audit Report" and a free-form "Ask Questions"
 chat. Heavy artifacts are cached in ``st.session_state`` keyed by the active
 data source so tab switches and reruns don't rebuild anything.
@@ -13,7 +13,7 @@ from typing import Any, Dict, List
 
 import streamlit as st
 
-from src.core import chunking, loaders, retrievers, ui, vectordb
+from src.core import chunking, retrievers, ui, vectordb
 from src.core.config import DATA_DIR
 from src.core.schemas import DataSource
 from src.features.audit_compliance.pipeline import (
@@ -62,22 +62,13 @@ def _get_or_build_retriever(source: DataSource) -> Dict[str, Any]:
     if bundle and bundle.get("signature") == sig:
         return bundle
 
-    with st.status("Indexing documents...", expanded=False) as status:
-        status.update(label="Loading files...")
-        docs = loaders.load_files_dispatch(source.files)
-        st.write(f"Loaded {len(docs)} pages / docs from {len(source.files)} file(s).")
-
-        status.update(label="Splitting into chunks...")
-        chunks = chunking.split_documents(docs)
-        st.write(f"Created {len(chunks)} chunks.")
-
-        status.update(label="Building / loading vector store...")
-        vdb = vectordb.get_or_create_vectordb(
-            chunks=chunks,
-            persist_path=source.persist_path,
-            collection_name=source.collection_name,
+    with st.status("Loading documents from the database...", expanded=False) as status:
+        vdb, chunks = vectordb.index_files(
+            source.collection_name,
+            source.files,
+            chunking.split_documents,
+            on_progress=st.write,
         )
-        st.write(f"Vector store ready: collection `{source.collection_name}`.")
 
         status.update(label="Building hybrid retriever...")
         retriever = retrievers.build_hybrid_retriever(

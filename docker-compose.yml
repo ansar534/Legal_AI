@@ -1,14 +1,21 @@
-# Legal AI Hub — single compose file used on both the laptop and the Azure VM.
+# Legal AI Hub — stateless app container. All state lives in managed Azure services:
 #
-#   Laptop : docker compose up --build
-#   VM     : docker compose pull && docker compose up -d --no-build
+#   PostgreSQL Flexible Server (private IP only)  vectors + upload records
+#   Blob Storage (no account keys)                uploaded files
+#   Key Vault (RBAC)                              API keys + database password
 #
-# REGISTRY / TAG come from .env (or the shell) so the exact same file resolves
-# to the exact same image reference in both places.
+# The container authenticates to all three with the VM's user-assigned managed
+# identity, so there is no .env file and no secret in this file or the image.
+#
+#   VM : az acr login -n legalai && docker compose pull && docker compose up -d --no-build
+#   DB : docker compose run --rm app python -m src.db.migrate
+#   One-off data import (the export is mounted for that run only):
+#        docker compose run --rm -v ~/migration:/migration:ro app \
+#          python -m src.db.import_chroma_export /migration/chroma_export.jsonl.gz
 
 services:
   app:
-    image: ${REGISTRY:-legalai.azurecr.io}/legal-ai-hub:${TAG:-v1}
+    image: ${REGISTRY:-legalai.azurecr.io}/legal-ai-hub:${TAG:-v2}
     build:
       context: .
       dockerfile: Dockerfile
@@ -17,21 +24,16 @@ services:
     restart: unless-stopped
     ports:
       - "${HOST_PORT:-8501}:8501"
-    # Secrets are injected at run time only. Nothing here is in the image.
-    env_file:
-      - path: .env
-        required: false
+    # Identifiers only. Secret values are read from Key Vault at run time.
     environment:
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
-      COURTLISTENER_API_KEY: ${COURTLISTENER_API_KEY:-}
-      APIFY_TOKEN: ${APIFY_TOKEN:-}
-      REGULATIONS_API_KEY: ${REGULATIONS_API_KEY:-DEMO_KEY}
-    volumes:
-      # Vector indexes are the only mutable state; they survive image upgrades.
-      # The app keeps three separate index roots, so each gets its own volume.
-      - chroma-data:/app/chromadb          # contract Q&A, policies, audit, risk
-      - litigation-data:/app/vector_store  # litigation support
-      - regulations-data:/app/.chromadb    # live regulations search
+      AZURE_CLIENT_ID: e2ee396e-3e07-46c0-b8b2-22f8c7d48242
+      AZURE_KEY_VAULT_URL: https://kv-legalai-m4.vault.azure.net/
+      AZURE_STORAGE_ACCOUNT_URL: https://stlegalaiuploads.blob.core.windows.net/
+      AZURE_STORAGE_CONTAINER: uploads
+      POSTGRES_HOST: pg-legalai-m4.postgres.database.azure.com
+      POSTGRES_DB: legalai
+      POSTGRES_USER: legalaiadmin
+      POSTGRES_SSLMODE: require
     networks:
       - legal-ai-net
     healthcheck:
@@ -46,14 +48,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 90s
-
-volumes:
-  chroma-data:
-    name: legal-ai-chroma
-  litigation-data:
-    name: legal-ai-litigation
-  regulations-data:
-    name: legal-ai-regulations
 
 networks:
   legal-ai-net:

@@ -3,6 +3,7 @@
 chromadb/
 .chromadb/
 vector_store/
+migration/
 __pycache__/
 *.pyc
 *.pyo

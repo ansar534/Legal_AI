@@ -79,8 +79,10 @@ RUN set -eux; \
 # the application needs, the BUILD fails here rather than the container at 3am.
 # HF_HUB_OFFLINE also proves the baked weights are genuinely self-sufficient.
 RUN HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 python -c "\
-import chromadb; \
-from langchain_chroma import Chroma; \
+import psycopg, psycopg_pool, pgvector.psycopg; \
+from azure.identity import ManagedIdentityCredential; \
+from azure.keyvault.secrets import SecretClient; \
+from azure.storage.blob import ContainerClient; \
 from langchain_groq import ChatGroq; \
 from langchain_huggingface import HuggingFaceEmbeddings; \
 v = HuggingFaceEmbeddings( \
@@ -133,25 +135,17 @@ WORKDIR /app
 # Application source and the seed corpus. data/ is read-only at run time, so it
 # ships in the image — the VM no longer needs a manual scp of 546 documents.
 COPY --chown=appuser:appuser src/ ./src/
+COPY --chown=appuser:appuser migrations/ ./migrations/
 COPY --chown=appuser:appuser data/ ./data/
 COPY --chown=appuser:appuser streamlit_app.py ./
 
-# The app writes vector indexes to three separate roots under /app:
-#   chromadb/      - contract Q&A, policies, audit, contract risk (+ uploads/)
-#   vector_store/  - litigation support (src/features/litigation/page.py)
-#   .chromadb/     - live regulations search (src/features/regulations_rag)
-# All three are pre-created and chowned here for two reasons: /app itself is
-# root-owned so appuser cannot mkdir inside it, and a named volume mounted onto
-# a path that exists in the image inherits that path's ownership rather than
-# defaulting to root.
-RUN mkdir -p /app/chromadb/uploads /app/vector_store /app/.chromadb \
- && chown -R appuser:appuser /app/chromadb /app/vector_store /app/.chromadb
-
+# The container holds no state. Vectors and upload records live in the managed
+# PostgreSQL server, uploaded files in Blob Storage, and secrets in Key Vault,
+# all reached with the VM's managed identity. The only writes go to a scratch
+# copy of each upload under /tmp, which is safe to lose.
 USER appuser
 
 EXPOSE 8501
-
-VOLUME ["/app/chromadb", "/app/vector_store", "/app/.chromadb"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
   CMD python -c "\

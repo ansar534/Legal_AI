@@ -6,7 +6,6 @@ from typing import Any, Dict, List
 
 import streamlit as st
 
-from src.core.config import PROJECT_ROOT
 from src.features import FeatureSpec
 from src.features.regulations_rag.pipeline import (
     DEFAULT_MAX_APIFY_ITEMS,
@@ -197,7 +196,6 @@ def render() -> None:
                         agency_id=agency_id.strip(),
                         max_items=max_items,
                         top_k=top_k,
-                        chroma_dir=str(PROJECT_ROOT / ".chromadb"),
                         on_status=_wrapped_status,
                     )
                     status.update(label="Search complete.", state="complete")

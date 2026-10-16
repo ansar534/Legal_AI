@@ -1,0 +1,9 @@
+#cloud-config
+# First-boot setup for vm-legalai. The VM keeps no application state: it only
+# needs Docker to run the image and the Azure CLI to log in to the registry
+# with its managed identity.
+package_update: true
+runcmd:
+  - curl -fsSL https://get.docker.com | sh
+  - usermod -aG docker azureuser
+  - curl -sL https://aka.ms/InstallAzureCLIDeb | bash

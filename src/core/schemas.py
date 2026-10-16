@@ -14,13 +14,12 @@ class DataSource:
     """
     Resolved output of `core.ui.source_picker`.
 
-    Tells a feature exactly which files to load, which Chroma collection
-    to use, and where on disk that collection lives.
+    Tells a feature exactly which files to load and which stored
+    collection holds their chunks.
     """
 
     files: List[Path]
     collection_name: str
-    persist_path: Path
     is_upload: bool = False
     label: str = ""
 

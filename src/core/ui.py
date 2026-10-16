@@ -7,12 +7,35 @@ from typing import TYPE_CHECKING, List, Optional
 
 import streamlit as st
 
-from src.core.config import UPLOAD_CHROMA_ROOT
-from src.core.loaders import sanitize_for_collection, save_uploaded_file
 from src.core.schemas import DataSource
+from src.core.storage import StoredUpload, store_upload, upload_collection_name
 
 if TYPE_CHECKING:
     from src.features import FeatureSpec
+
+
+def save_upload(feature_key: str, uploaded) -> tuple[StoredUpload, str]:
+    """
+    Store a Streamlit upload in Blob Storage once per session.
+
+    Streamlit reruns the page on every interaction; without this the same
+    file would be re-sent to the blob container each time.
+    """
+    data = uploaded.getvalue()
+    collection = upload_collection_name(uploaded.name, data)
+    cache: dict = st.session_state.setdefault("_stored_uploads", {})
+    key = (feature_key, collection)
+    stored = cache.get(key)
+    if stored is None or not stored.local_path.exists():
+        stored = store_upload(
+            feature=feature_key,
+            filename=uploaded.name,
+            data=data,
+            collection_name=collection,
+            content_type=uploaded.type,
+        )
+        cache[key] = stored
+    return stored, collection
 
 
 def _list_existing(folder: Path, suffixes: List[str]) -> List[Path]:
@@ -75,7 +98,6 @@ def source_picker(spec: "FeatureSpec") -> Optional[DataSource]:
         return DataSource(
             files=files,
             collection_name=spec.default_collection,
-            persist_path=spec.collection_path,
             is_upload=False,
             label=(
                 f"Existing ({len(files)} of {len(existing)})"
@@ -95,19 +117,17 @@ def source_picker(spec: "FeatureSpec") -> Optional[DataSource]:
         st.sidebar.info("Awaiting upload...")
         return None
 
-    upload_dir = spec.data_folder / "uploads"
-    saved_path = save_uploaded_file(uploaded, upload_dir)
+    try:
+        stored, collection = save_upload(spec.key, uploaded)
+    except Exception as exc:  # noqa: BLE001
+        st.sidebar.error(f"Could not store the upload: {exc}")
+        return None
 
-    sanitized = sanitize_for_collection(saved_path.name)
-    collection = f"upload_{sanitized}"
-    persist_path = UPLOAD_CHROMA_ROOT / sanitized
-
-    st.sidebar.success(f"Uploaded: {saved_path.name}")
+    st.sidebar.success(f"Stored in Blob Storage: `{stored.blob_name}`")
 
     return DataSource(
-        files=[saved_path],
+        files=[stored.local_path],
         collection_name=collection,
-        persist_path=persist_path,
         is_upload=True,
-        label=f"Upload: {saved_path.name}",
+        label=f"Upload: {stored.filename}",
     )

@@ -15,9 +15,8 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 import streamlit as st
 
-from src.core import chunking, loaders, retrievers, vectordb
-from src.core.config import CHROMA_ROOT, DATA_DIR, UPLOAD_CHROMA_ROOT
-from src.core.loaders import sanitize_for_collection, save_uploaded_file
+from src.core import chunking, retrievers, ui, vectordb
+from src.core.config import DATA_DIR
 from src.features import FeatureSpec
 from src.features.contract_risk.pipeline import build_chain
 
@@ -51,8 +50,8 @@ _CHAT_KEY = "contract_risk__chat"
 # KB loader (always cached for the session)
 # ---------------------------------------------------------------------------
 
-def _load_kb_documents() -> List:
-    """Load every file in the KB folder as Documents (PDF + CSV supported)."""
+def _kb_files() -> List:
+    """Every file in the KB folder (PDF + CSV + TXT)."""
     if not KB_FOLDER.exists():
         raise FileNotFoundError(
             f"Knowledge base folder missing: {KB_FOLDER}"
@@ -64,19 +63,18 @@ def _load_kb_documents() -> List:
     )
     if not files:
         raise ValueError(f"No KB files found in {KB_FOLDER}")
+    return files
 
-    docs = loaders.load_files_dispatch(files)
-    # Tag each doc with the source type so the LLM can tell pdf clauses
-    # from csv risk-matrix rows.
-    for d in docs:
-        suffix = (
-            d.metadata.get("source_path", "").lower().rsplit(".", 1)[-1]
-            if d.metadata.get("source_path")
-            else ""
-        )
-        d.metadata.setdefault("source_type", suffix or "unknown")
-        d.metadata.setdefault("category", "risk_kb")
-    return docs
+
+def _tag_kb_document(d) -> None:
+    """Tag the source type so the LLM can tell pdf clauses from csv risk-matrix rows."""
+    suffix = (
+        d.metadata.get("source_path", "").lower().rsplit(".", 1)[-1]
+        if d.metadata.get("source_path")
+        else ""
+    )
+    d.metadata.setdefault("source_type", suffix or "unknown")
+    d.metadata.setdefault("category", "risk_kb")
 
 
 def _get_or_build_kb() -> Dict[str, Any]:
@@ -86,22 +84,15 @@ def _get_or_build_kb() -> Dict[str, Any]:
 
     with st.status("Loading risk knowledge base...", expanded=True) as status:
         try:
-            status.update(label="Loading PDF + CSV...")
-            docs = _load_kb_documents()
-            st.write(f"Loaded {len(docs)} KB documents.")
-
-            status.update(label="Chunking...")
-            chunks = chunking.split_documents(
-                docs, chunk_size=1000, chunk_overlap=200,
-                separators=["\n\n", "\n", ".", ";"],
-            )
-            st.write(f"Created {len(chunks)} KB chunks.")
-
-            status.update(label="Building / loading vector store...")
-            vdb = vectordb.get_or_create_vectordb(
-                chunks=chunks,
-                persist_path=CHROMA_ROOT,
-                collection_name=KB_COLLECTION,
+            vdb, chunks = vectordb.index_files(
+                KB_COLLECTION,
+                _kb_files(),
+                lambda docs: chunking.split_documents(
+                    docs, chunk_size=1000, chunk_overlap=200,
+                    separators=["\n\n", "\n", ".", ";"],
+                ),
+                prepare=_tag_kb_document,
+                on_progress=st.write,
             )
 
             status.update(label="Building hybrid retriever...")
@@ -131,27 +122,18 @@ def _get_or_build_contract(uploaded_file) -> Dict[str, Any]:
     if bundle and bundle.get("filename") == uploaded_file.name:
         return bundle
 
-    upload_dir = KB_FOLDER / "uploaded_contracts"
-    saved_path = save_uploaded_file(uploaded_file, upload_dir)
-    sanitized = sanitize_for_collection(saved_path.name)
-    persist_path = UPLOAD_CHROMA_ROOT / sanitized
-    collection_name = f"upload_{sanitized}"
+    stored, collection_name = ui.save_upload(SPEC.key, uploaded_file)
+    saved_path = stored.local_path
 
     with st.status(f"Indexing {saved_path.name}...", expanded=True) as status:
         try:
-            status.update(label="Loading file...")
-            docs = loaders.load_files_dispatch([saved_path])
-            for d in docs:
-                d.metadata.setdefault("category", "user_contract")
-
-            status.update(label="Chunking...")
-            chunks = chunking.split_documents(docs)
-
-            status.update(label="Building / loading vector store...")
-            vdb = vectordb.get_or_create_vectordb(
-                chunks=chunks,
-                persist_path=persist_path,
-                collection_name=collection_name,
+            st.write(f"Stored in Blob Storage: `{stored.blob_name}`")
+            vdb, chunks = vectordb.index_files(
+                collection_name,
+                [saved_path],
+                chunking.split_documents,
+                prepare=lambda d: d.metadata.setdefault("category", "user_contract"),
+                on_progress=st.write,
             )
 
             status.update(label="Building hybrid retriever...")

@@ -1,9 +1,6 @@
 # Streamlit UI
 streamlit>=1.36
 
-# Environment / config
-python-dotenv
-
 # Data validation
 pydantic>=2
 
@@ -13,13 +10,21 @@ langchain-core
 langchain-text-splitters
 langchain-community
 langchain-huggingface
-langchain-chroma
 langchain-classic
 langchain-groq
 
-# Vector store + embeddings
-chromadb
+# Embeddings
 sentence-transformers
+
+# Managed PostgreSQL + pgvector (vector store, upload records)
+psycopg[binary]>=3.2
+psycopg-pool
+pgvector
+
+# Azure: managed identity, Key Vault secrets, Blob Storage uploads
+azure-identity
+azure-keyvault-secrets
+azure-storage-blob
 
 # PDF + CSV loading
 pypdf

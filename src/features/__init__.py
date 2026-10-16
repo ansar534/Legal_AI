@@ -15,8 +15,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, List, Optional
 
-from src.core.config import CHROMA_ROOT
-
 
 @dataclass
 class FeatureSpec:
@@ -30,14 +28,6 @@ class FeatureSpec:
     data_folder: Optional[Path] = None
     supported_uploads: List[str] = field(default_factory=lambda: ["pdf"])
     description: str = ""
-    # Optional override for where the feature's persistent Chroma collection
-    # lives on disk. When ``None`` the shared ``chromadb/`` directory is used.
-    custom_persist_path: Optional[Path] = None
-
-    @property
-    def collection_path(self) -> Path:
-        """Where the feature's *default* (non-upload) Chroma collection lives."""
-        return self.custom_persist_path or CHROMA_ROOT
 
 
 # ---------------------------------------------------------------------------

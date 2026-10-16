@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 import streamlit as st
 
-from src.core import chunking, loaders, retrievers, ui, vectordb
+from src.core import chunking, retrievers, ui, vectordb
 from src.core.config import DATA_DIR
 from src.core.schemas import DataSource
 from src.features import FeatureSpec
@@ -39,20 +39,12 @@ def _get_or_build_retriever(source: DataSource) -> Dict[str, Any]:
     if bundle and bundle.get("signature") == sig:
         return bundle
 
-    with st.status("Indexing policy documents...", expanded=False) as status:
-        status.update(label="Loading PDFs...")
-        docs = loaders.load_files_dispatch(source.files)
-        st.write(f"Loaded {len(docs)} pages from {len(source.files)} file(s).")
-
-        status.update(label="Splitting into chunks...")
-        chunks = chunking.split_documents(docs)
-        st.write(f"Created {len(chunks)} chunks.")
-
-        status.update(label="Building / loading vector store...")
-        vdb = vectordb.get_or_create_vectordb(
-            chunks=chunks,
-            persist_path=source.persist_path,
-            collection_name=source.collection_name,
+    with st.status("Loading policy documents from the database...", expanded=False) as status:
+        vdb, chunks = vectordb.index_files(
+            source.collection_name,
+            source.files,
+            chunking.split_documents,
+            on_progress=st.write,
         )
 
         status.update(label="Building hybrid retriever...")

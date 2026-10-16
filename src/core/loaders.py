@@ -162,24 +162,7 @@ _SANITIZE_RE = re.compile(r"[^a-zA-Z0-9_-]+")
 
 
 def sanitize_for_collection(name: str) -> str:
-    """
-    Make an arbitrary filename safe to use in a Chroma collection name
-    and as a directory component.
-    """
+    """Make an arbitrary filename safe to use in a collection name."""
     stem = Path(name).stem
     cleaned = _SANITIZE_RE.sub("_", stem).strip("_").lower()
     return cleaned or "upload"
-
-
-def save_uploaded_file(uploaded_file, destination_folder: Path) -> Path:
-    """
-    Persist a Streamlit ``UploadedFile`` to disk and return the saved Path.
-
-    Streamlit is intentionally not imported here so this module stays usable
-    outside the app; ``uploaded_file`` only needs ``.name`` and ``.getbuffer()``.
-    """
-    destination_folder.mkdir(parents=True, exist_ok=True)
-    target = destination_folder / uploaded_file.name
-    with open(target, "wb") as fh:
-        fh.write(uploaded_file.getbuffer())
-    return target

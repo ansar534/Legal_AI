@@ -4,14 +4,15 @@ from __future__ import annotations
 
 from typing import List, Optional, Sequence
 
-from langchain_chroma import Chroma
 from langchain_classic.retrievers import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
 
+from src.core.vectordb import PgVectorStore
+
 
 def build_hybrid_retriever(
-    vectordb: Chroma,
+    vectordb: PgVectorStore,
     chunks: List[Document],
     vector_k: int = 8,
     fetch_k: int = 30,
@@ -24,7 +25,7 @@ def build_hybrid_retriever(
     Combine BM25 (sparse) with MMR vector search (dense).
 
     ``filter_filenames`` is critical for the "use existing documents"
-    subset case. The persistent Chroma collection is shared across runs
+    subset case. A stored collection is shared across runs
     and may contain chunks from MANY files; when the user has selected a
     subset we must constrain the dense retriever to those files only,
     otherwise the LLM gets hits from documents the user didn't pick.
@@ -37,9 +38,8 @@ def build_hybrid_retriever(
         "lambda_mult": lambda_mult,
     }
     if filter_filenames:
-        # Chroma `where` filter syntax. ``$in`` matches any of the given
-        # values. Single-value lists work as well; we always use $in for
-        # uniformity.
+        # ``$in`` matches any of the given values; PgVectorStore turns it
+        # into ``filename = ANY(...)``.
         search_kwargs["filter"] = {
             "filename": {"$in": list(filter_filenames)}
         }
