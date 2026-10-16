@@ -95,6 +95,13 @@ def _filename_scope(filter: Optional[dict]) -> Optional[List[str]]:
     raise ValueError(f"Unsupported filename filter: {cond!r}")
 
 
+def _as_array(value: Any) -> np.ndarray:
+    """pgvector >= 0.4 loads `vector` columns as a Vector object, not an ndarray."""
+    if hasattr(value, "to_numpy"):
+        value = value.to_numpy()
+    return np.asarray(value, dtype=np.float32)
+
+
 class _Hit(NamedTuple):
     document: Document
     distance: float
@@ -178,7 +185,7 @@ class PgVectorStore(VectorStore):
             _Hit(
                 Document(id=row[0], page_content=row[1], metadata=row[2]),
                 float(row[3]),
-                np.asarray(row[4], dtype=np.float32) if with_embeddings else None,
+                _as_array(row[4]) if with_embeddings else None,
             )
             for row in rows
         ]
