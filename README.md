@@ -1,6 +1,8 @@
 # Legal AI Hub
 
-A production-ready, multi-feature AI legal assistant built with **Streamlit**, **LangChain**, **ChromaDB**, and **Groq**. It provides a unified, navigable UI for six distinct legal document analysis pipelines, all sharing a clean layered architecture.
+A production-ready, multi-feature AI legal assistant built with **Streamlit**, **LangChain**, **PostgreSQL + pgvector**, and **Groq**. It provides a unified, navigable UI for six distinct legal document analysis pipelines, all sharing a clean layered architecture.
+
+> **Milestone 4: the app container is stateless.** Vectors and upload records live in Azure Database for PostgreSQL (private IP only), uploaded files in Blob Storage, and every secret in Key Vault. The container reaches all three with the VM's user-assigned managed identity, so there is no `.env` file and no key in the code or image. See [Deployment on Azure](#deployment-on-azure-milestone-4). The deep dive below still describes the Milestone 3 ChromaDB internals in places; `src/core/vectordb.py` is now a pgvector-backed LangChain `VectorStore` with the same retriever interface.
 
 ---
 
@@ -120,14 +122,15 @@ pip install -r requirements.txt
 
 ### 4. Configure environment variables
 
-Create a `.env` file in the project root:
+There is no `.env` file. Secrets are read from Key Vault at start-up (see [Environment Variables](#environment-variables)). For local development, sign in with `az login` (your account needs **Key Vault Secrets User** on the vault) and set the non-secret identifiers that `docker-compose.yml` sets on the VM:
 
-```env
-GROQ_API_KEY=your_groq_api_key
-COURTLISTENER_API_KEY=your_courtlistener_key   # Litigation feature only
-APIFY_TOKEN=your_apify_token                   # Regulations RAG only
-REGULATIONS_API_KEY=your_regulations_gov_key   # Optional, defaults to DEMO_KEY
+```bash
+export AZURE_KEY_VAULT_URL=https://kv-legalai-m4.vault.azure.net/
+export AZURE_STORAGE_ACCOUNT_URL=https://stlegalaiuploads.blob.core.windows.net/
+export POSTGRES_HOST=pg-legalai-m4.postgres.database.azure.com POSTGRES_DB=legalai POSTGRES_USER=legalaiadmin
 ```
+
+The database has no public endpoint, so it is only reachable from inside `vnet-northcentralus-1`.
 
 ### 5. Add documents to `data/`
 
@@ -578,14 +581,47 @@ The two-tier LLM strategy exists because `gpt-oss-20b` is known to produce empty
 
 ## Environment Variables
 
-| Variable | Required by | Description |
-|---|---|---|
-| `GROQ_API_KEY` | All features | Groq Cloud API key |
-| `COURTLISTENER_API_KEY` | Litigation Support | CourtListener REST API token |
-| `APIFY_TOKEN` | Regulations RAG | Apify platform token |
-| `REGULATIONS_API_KEY` | Regulations RAG | regulations.gov API key (defaults to `DEMO_KEY`) |
+Secrets live in Key Vault `kv-legalai-m4`. `load_env()` in `src/core/config.py` fetches them with the managed identity and copies them into the Python process's environment only; they never appear in `docker inspect` or `printenv`.
 
-See [`.env.example`](.env.example) for a simple VM/local host with on-disk Chroma.
+| Key Vault secret | Exposed to the app as | Required by |
+|---|---|---|
+| `groq-api-key` | `GROQ_API_KEY` | All features |
+| `courtlistener-api-key` | `COURTLISTENER_API_KEY` | Litigation Support |
+| `apify-token` | `APIFY_TOKEN` | Regulations RAG |
+| `regulations-api-key` | `REGULATIONS_API_KEY` | Regulations RAG (falls back to `DEMO_KEY`) |
+| `postgres-password` | `POSTGRES_PASSWORD` | Database connection |
+
+Non-secret identifiers, set in `docker-compose.yml`:
+
+| Variable | Value |
+|---|---|
+| `AZURE_CLIENT_ID` | Client ID of the managed identity `id-legalai-app` |
+| `AZURE_KEY_VAULT_URL` | `https://kv-legalai-m4.vault.azure.net/` |
+| `AZURE_STORAGE_ACCOUNT_URL` / `AZURE_STORAGE_CONTAINER` | `https://stlegalaiuploads.blob.core.windows.net/` / `uploads` |
+| `POSTGRES_HOST` / `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_SSLMODE` | `pg-legalai-m4.postgres.database.azure.com` / `legalai` / `legalaiadmin` / `require` |
+
+---
+
+## Deployment on Azure (Milestone 4)
+
+| State | Where it lives | Access |
+|---|---|---|
+| Document chunks + embeddings (`chunks`, `collections`) | PostgreSQL Flexible Server `pg-legalai-m4`, pgvector, private IP in `snet-postgres` | Password from Key Vault, TLS required |
+| Upload records (`uploads`) | Same database | Same |
+| Uploaded files | Blob container `stlegalaiuploads/uploads` | Managed identity, **Storage Blob Data Contributor**; account keys disabled |
+| Secrets | Key Vault `kv-legalai-m4` (RBAC) | Managed identity, **Key Vault Secrets User** |
+| Image | ACR `legalai` | Managed identity, **AcrPull** |
+
+Schema changes go through numbered SQL files in `migrations/`, applied by `python -m src.db.migrate`. The Milestone 3 Chroma data was moved with `tools/export_chroma.py` (run where the old stores exist) and `python -m src.db.import_chroma_export`, which keeps the original chunk ids and embeddings and prints old vs new row counts.
+
+On the VM:
+
+```bash
+git clone https://github.com/ansar534/Legal_AI.git && cd Legal_AI
+docker compose build
+docker compose run --rm app python -m src.db.migrate
+docker compose up -d
+```
 
 ---
 
