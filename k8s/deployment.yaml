@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: legal-ai-hub
+  namespace: legal-ai
+  labels:
+    app.kubernetes.io/name: legal-ai-hub
+spec:
+  # No `replicas` field: the HorizontalPodAutoscaler owns the count (min 2).
+  # Setting it here would reset the autoscaler's choice on every apply.
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: legal-ai-hub
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: legal-ai-hub
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: legal-ai-hub
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      # Prefer one replica per node so losing a node never takes out both.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: legal-ai-hub
+      containers:
+        - name: app
+          image: legalai.azurecr.io/legal-ai-hub:v5
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8501
+            - name: health
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: legal-ai-hub-config
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: "1"
+              memory: 3Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          # Streamlit takes a few seconds to bind; liveness is held off until then.
+          startupProbe:
+            httpGet:
+              path: /_stcore/health
+              port: http
+            periodSeconds: 3
+            failureThreshold: 40
+          # Alive = the Streamlit server answers. Deliberately no database check:
+          # a database outage must not restart every replica in a loop.
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # Ready = Streamlit answers AND PostgreSQL returns the applied migrations
+          # (src/health_server.py). Failing it only removes the pod from the Service.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            periodSeconds: 5
+            timeoutSeconds: 4
+            failureThreshold: 2
+          lifecycle:
+            # Keep serving while the ingress drops this pod from its endpoints,
+            # so in-flight requests are not cut off with a 502.
+            preStop:
+              exec:
+                command: ["sleep", "10"]

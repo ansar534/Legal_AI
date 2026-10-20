@@ -1,0 +1,15 @@
+# Let's Encrypt production issuer. The HTTP-01 challenge is answered through
+# the same Traefik ingress that serves the app.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-account
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: traefik

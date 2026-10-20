@@ -1,0 +1,28 @@
+# Public entry point. Traefik's Azure load balancer owns the DNS name
+# legalai-hub.northcentralus.cloudapp.azure.com (k8s/traefik-values.yaml) and
+# redirects every http:// request to https://. cert-manager obtains and renews
+# the Let's Encrypt certificate stored in legal-ai-hub-tls.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: legal-ai-hub
+  namespace: legal-ai
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - legalai-hub.northcentralus.cloudapp.azure.com
+      secretName: legal-ai-hub-tls
+  rules:
+    - host: legalai-hub.northcentralus.cloudapp.azure.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: legal-ai-hub
+                port:
+                  name: http

@@ -1,0 +1,14 @@
+# kubectl apply -k k8s/
+# Install Traefik and cert-manager first (see k8s/README.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - hpa.yaml
+  - pdb.yaml
+  - cluster-issuer.yaml

@@ -1,0 +1,17 @@
+# Voluntary disruptions (node drains for upgrades, node-image updates, scale
+# down) may evict at most one replica at a time. Without this, a drain can
+# evict every replica at once and the ingress returns 503 until replacements
+# pass their readiness probe.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: legal-ai-hub
+  namespace: legal-ai
+spec:
+  maxUnavailable: 1
+  # A pod that is already failing readiness can be evicted without counting
+  # against the budget, so a broken replica never blocks a node drain.
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: legal-ai-hub

@@ -1,0 +1,50 @@
+# helm upgrade --install traefik traefik/traefik --version 42.1.0 \
+#   -n traefik --create-namespace -f k8s/traefik-values.yaml
+#
+# Traefik is the ingress controller. Its Service is the Azure load balancer:
+# the only public entry point into the cluster.
+deployment:
+  replicas: 2
+
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+
+ports:
+  web:
+    # Let's Encrypt's HTTP-01 challenge must be answered on plain http;
+    # everything else is redirected.
+    allowACMEByPass: true
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    http:
+      tls:
+        enabled: true
+
+service:
+  annotations:
+    # Public hostname: legalai-hub.northcentralus.cloudapp.azure.com
+    service.beta.kubernetes.io/azure-dns-label-name: legalai-hub
+    # TCP health probes: an HTTP probe on "/" would get Traefik's 404 for an
+    # unknown host and mark every node unhealthy.
+    service.beta.kubernetes.io/port_80_health-probe_protocol: tcp
+    service.beta.kubernetes.io/port_443_health-probe_protocol: tcp
+  spec:
+    # Keeps the client IP visible to Traefik and avoids an extra node hop.
+    externalTrafficPolicy: Local
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi

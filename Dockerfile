@@ -80,7 +80,7 @@ RUN set -eux; \
 # HF_HUB_OFFLINE also proves the baked weights are genuinely self-sufficient.
 RUN HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 python -c "\
 import psycopg, psycopg_pool, pgvector.psycopg; \
-from azure.identity import ManagedIdentityCredential; \
+from azure.identity import ManagedIdentityCredential, WorkloadIdentityCredential; \
 from azure.keyvault.secrets import SecretClient; \
 from azure.storage.blob import ContainerClient; \
 from langchain_groq import ChatGroq; \
@@ -124,6 +124,11 @@ ENV PATH="/opt/venv/bin:$PATH" \
     STREAMLIT_SERVER_HEADLESS=true \
     STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
+# The source watcher exists for live reload during development. In the image it
+# walks every module in sys.modules, importing transformers' lazy vision models
+# (which need torchvision) and slowing the first page load.
+ENV STREAMLIT_SERVER_FILE_WATCHER_TYPE=none
+
 # Both come from the `model` stage: it holds the pruned, smoke-tested venv.
 # Copying the venv from `builder` instead would silently discard every
 # size reduction made above.
@@ -141,15 +146,20 @@ COPY --chown=appuser:appuser streamlit_app.py ./
 
 # The container holds no state. Vectors and upload records live in the managed
 # PostgreSQL server, uploaded files in Blob Storage, and secrets in Key Vault,
-# all reached with the VM's managed identity. The only writes go to a scratch
+# all reached with the managed identity. The only writes go to a scratch
 # copy of each upload under /tmp, which is safe to lose.
 USER appuser
 
-EXPOSE 8501
+# 8501: Streamlit (liveness probe: /_stcore/health)
+# 8080: readiness endpoint /readyz, which also checks the database
+EXPOSE 8501 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
   CMD python -c "\
 import urllib.request,sys; \
 sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=4).status == 200 else 1)"
 
-CMD ["streamlit", "run", "streamlit_app.py"]
+# The readiness server is restarted if it ever exits, so a crash there cannot
+# leave a healthy app permanently marked not-ready. Streamlit is exec'd so it
+# receives SIGTERM directly when Kubernetes stops the pod.
+CMD ["sh", "-c", "(while true; do python -m src.health_server; sleep 2; done) & exec streamlit run streamlit_app.py"]
