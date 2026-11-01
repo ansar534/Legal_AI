@@ -7,12 +7,11 @@ from typing import List, Optional, Sequence
 from langchain_classic.retrievers import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain_core.documents import Document
-
-from src.core.vectordb import PgVectorStore
+from langchain_core.vectorstores import VectorStore
 
 
 def build_hybrid_retriever(
-    vectordb: PgVectorStore,
+    vectordb: VectorStore,
     chunks: List[Document],
     vector_k: int = 8,
     fetch_k: int = 30,

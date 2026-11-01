@@ -28,6 +28,7 @@ class FeatureSpec:
     data_folder: Optional[Path] = None
     supported_uploads: List[str] = field(default_factory=lambda: ["pdf"])
     description: str = ""
+    suggestions: List[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

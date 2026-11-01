@@ -78,6 +78,11 @@ def get_required_env(key: str) -> str:
     return value
 
 
+def is_local() -> bool:
+    """Local testing: Chroma on disk and uploads kept on disk, no Azure services."""
+    return os.getenv("LEGAL_AI_LOCAL", "").lower() in {"1", "true", "yes"}
+
+
 def ensure_dirs() -> None:
     """Make sure the scratch directory exists."""
     SCRATCH_DIR.mkdir(parents=True, exist_ok=True)

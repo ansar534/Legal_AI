@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import streamlit as st
 
@@ -25,6 +25,12 @@ SPEC = FeatureSpec(
         "Ask precise questions over company / regulatory policies, "
         "with citations to the source documents."
     ),
+    suggestions=[
+        "What does the anti-corruption policy say about gifts and hospitality?",
+        "How do I report a concern under the whistleblowing policy?",
+        "What are the global trade compliance obligations?",
+        "Summarise the human rights policy commitments.",
+    ],
 )
 
 
@@ -65,51 +71,19 @@ def _get_or_build_retriever(source: DataSource) -> Dict[str, Any]:
     return bundle
 
 
-def _render_chat(retriever) -> None:
-    history: List[Dict[str, str]] = st.session_state.setdefault(_CHAT_KEY, [])
-
-    for msg in history:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
-    question = st.chat_input("Ask a policy question...")
-    if not question:
-        return
-
-    history.append({"role": "user", "content": question})
-    with st.chat_message("user"):
-        st.markdown(question)
-
-    with st.chat_message("assistant"):
-        try:
-            with st.spinner("Thinking..."):
-                response = build_qna_chain(retriever).invoke({"question": question})
-            answer = getattr(response, "content", str(response))
-        except Exception as exc:  # noqa: BLE001
-            answer = f"Error: {exc}"
-        st.markdown(answer)
-        history.append({"role": "assistant", "content": answer})
-
-
 def render() -> None:
-    st.title(SPEC.title)
-    st.caption(SPEC.description)
+    ui.page_header(SPEC)
+    ui.new_chat_button(_CHAT_KEY)
 
     source = ui.source_picker(SPEC)
     if source is None:
-        st.info(
-            "Choose **Use existing documents** or upload a new policy PDF "
-            "from the sidebar to get started."
-        )
-        return
-    if not source.files:
-        st.warning("No files selected. Pick at least one from the sidebar.")
+        st.info("Upload a policy PDF from the sidebar to get started.")
         return
 
-    st.markdown(f"**Active source:** {source.label}")
-    with st.expander("Files in scope", expanded=False):
-        for f in source.files:
-            st.markdown(f"- `{f.name}`")
-
-    bundle = _get_or_build_retriever(source)
-    _render_chat(bundle["retriever"])
+    retriever = _get_or_build_retriever(source)["retriever"]
+    ui.chat(
+        SPEC,
+        _CHAT_KEY,
+        lambda: build_qna_chain(retriever),
+        placeholder="Ask a policy question...",
+    )

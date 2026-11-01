@@ -9,7 +9,7 @@ data source so tab switches and reruns don't rebuild anything.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import streamlit as st
 
@@ -42,6 +42,12 @@ SPEC = FeatureSpec(
         "Streamline compliance audits by automatically identifying gaps, "
         "discrepancies, and outdated procedures across your documents."
     ),
+    suggestions=[
+        "What are the main regulatory risk factors disclosed?",
+        "How do these companies describe their internal controls?",
+        "Which legal proceedings are disclosed in the filings?",
+        "Compare the cybersecurity risk disclosures across companies.",
+    ],
 )
 
 
@@ -211,33 +217,12 @@ def _render_report_tab(retriever) -> None:
 
 
 def _render_chat_tab(retriever) -> None:
-    st.subheader("Ask questions")
-    st.caption("Free-form Q&A over the same documents. Citations included.")
-
-    history: List[Dict[str, str]] = st.session_state.setdefault(_CHAT_KEY, [])
-
-    for msg in history:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
-    question = st.chat_input("Ask a compliance question...")
-    if not question:
-        return
-
-    history.append({"role": "user", "content": question})
-    with st.chat_message("user"):
-        st.markdown(question)
-
-    with st.chat_message("assistant"):
-        try:
-            with st.spinner("Thinking..."):
-                response = build_qna_chain(retriever).invoke({"question": question})
-            answer = getattr(response, "content", str(response))
-        except Exception as exc:  # noqa: BLE001
-            answer = f"Error: {exc}"
-
-        st.markdown(answer)
-        history.append({"role": "assistant", "content": answer})
+    ui.chat(
+        SPEC,
+        _CHAT_KEY,
+        lambda: build_qna_chain(retriever),
+        placeholder="Ask a compliance question...",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -245,25 +230,13 @@ def _render_chat_tab(retriever) -> None:
 # ---------------------------------------------------------------------------
 
 def render() -> None:
-    st.title(SPEC.title)
-    st.caption(SPEC.description)
+    ui.page_header(SPEC)
+    ui.new_chat_button(_CHAT_KEY)
 
     source = ui.source_picker(SPEC)
     if source is None:
-        st.info(
-            "Choose **Use existing documents** or upload a new file from the "
-            "sidebar to get started."
-        )
+        st.info("Upload a document from the sidebar to get started.")
         return
-
-    if not source.files:
-        st.warning("No files selected. Pick at least one from the sidebar.")
-        return
-
-    st.markdown(f"**Active source:** {source.label}")
-    with st.expander("Files in scope", expanded=False):
-        for f in source.files:
-            st.markdown(f"- `{f.name}`")
 
     bundle = _get_or_build_retriever(source)
     retriever = bundle["retriever"]

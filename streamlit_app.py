@@ -28,18 +28,20 @@ if str(_PROJECT_ROOT) not in sys.path:
 st.set_page_config(
     page_title="Legal AI Hub",
     page_icon=":material/balance:",
-    layout="wide",
+    layout="centered",
 )
 
 
 # Imported AFTER set_page_config so any cached @st.cache_resource calls
 # triggered at import time are safe.
 from src.core.config import ensure_dirs, load_env  # noqa: E402
+from src.core.ui import apply_chat_style  # noqa: E402
 from src.features import FEATURES  # noqa: E402
 
 
 load_env()
 ensure_dirs()
+apply_chat_style()
 
 
 def _build_pages():

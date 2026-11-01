@@ -143,6 +143,7 @@ COPY --chown=appuser:appuser src/ ./src/
 COPY --chown=appuser:appuser migrations/ ./migrations/
 COPY --chown=appuser:appuser data/ ./data/
 COPY --chown=appuser:appuser streamlit_app.py ./
+COPY --chown=appuser:appuser .streamlit/ ./.streamlit/
 
 # The container holds no state. Vectors and upload records live in the managed
 # PostgreSQL server, uploaded files in Blob Storage, and secrets in Key Vault,

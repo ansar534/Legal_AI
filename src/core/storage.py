@@ -11,7 +11,7 @@ from typing import Optional
 
 from azure.storage.blob import ContainerClient, ContentSettings
 
-from src.core.config import SCRATCH_DIR, get_required_env, load_env
+from src.core.config import SCRATCH_DIR, get_required_env, is_local, load_env
 from src.core.identity import get_credential
 from src.core.loaders import sanitize_for_collection
 from src.db.connection import get_pool
@@ -55,6 +55,14 @@ def store_upload(
     blob_name = f"{feature}/{sha[:16]}/{name}"
     content_type = content_type or "application/octet-stream"
 
+    local_path = SCRATCH_DIR / "uploads" / sha[:16] / name
+    if not local_path.exists():
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        local_path.write_bytes(data)
+
+    if is_local():
+        return StoredUpload(name, blob_name, sha, len(data), local_path)
+
     blob = _container().get_blob_client(blob_name)
     if not blob.exists():
         blob.upload_blob(
@@ -73,11 +81,6 @@ def store_upload(
             """,
             (feature, name, blob_name, content_type, len(data), sha, collection_name),
         )
-
-    local_path = SCRATCH_DIR / "uploads" / sha[:16] / name
-    if not local_path.exists():
-        local_path.parent.mkdir(parents=True, exist_ok=True)
-        local_path.write_bytes(data)
 
     return StoredUpload(name, blob_name, sha, len(data), local_path)
 

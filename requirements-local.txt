@@ -1,0 +1,4 @@
+# Local testing only (LEGAL_AI_LOCAL=1): vectors in the on-disk Chroma store.
+-r requirements.txt
+chromadb>=1.0
+langchain-chroma

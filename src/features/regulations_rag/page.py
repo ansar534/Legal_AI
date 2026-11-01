@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 import streamlit as st
 
+from src.core import ui
 from src.features import FeatureSpec
 from src.features.regulations_rag.pipeline import (
     DEFAULT_MAX_APIFY_ITEMS,
@@ -117,10 +118,10 @@ def _render_result(result: RegulationsAnswer) -> None:
 
 
 def render() -> None:
-    st.title(SPEC.title)
+    ui.page_header(SPEC)
     st.caption(SPEC.description)
 
-    st.sidebar.markdown(f"### {SPEC.title}")
+    st.sidebar.markdown("**Search settings**")
     st.sidebar.caption(
         "Configure the live search parameters. Each run hits Apify + "
         "Regulations.gov and may take 30-90 seconds."

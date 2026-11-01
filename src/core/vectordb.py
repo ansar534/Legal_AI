@@ -16,6 +16,7 @@ from langchain_core.vectorstores.utils import maximal_marginal_relevance
 from psycopg.types.json import Jsonb
 
 from src.core import loaders
+from src.core.config import is_local
 from src.core.embeddings import DEFAULT_EMBEDDING_MODEL, get_embeddings
 from src.db.connection import get_pool
 
@@ -296,6 +297,15 @@ def _chunk_ids(chunks: Sequence[Document]) -> List[str]:
     return ids
 
 
+def open_store(collection_name: str) -> VectorStore:
+    """pgvector in deployments; on-disk Chroma when ``LEGAL_AI_LOCAL`` is set."""
+    if is_local():
+        from src.core.chroma_store import ChromaStore
+
+        return ChromaStore(collection_name)
+    return PgVectorStore(collection_name)
+
+
 def index_files(
     collection_name: str,
     files: Sequence[Path],
@@ -303,7 +313,7 @@ def index_files(
     *,
     prepare: Optional[Callable[[Document], None]] = None,
     on_progress: Optional[Callable[[str], None]] = None,
-) -> Tuple[PgVectorStore, List[Document]]:
+) -> Tuple[VectorStore, List[Document]]:
     """
     Make sure every file is in the collection, then return its chunks.
 
@@ -311,7 +321,7 @@ def index_files(
     only new ones are. The returned chunks are read back from the database.
     """
     report = on_progress or (lambda _msg: None)
-    store = PgVectorStore(collection_name)
+    store = open_store(collection_name)
     have = store.indexed_filenames()
     missing = [f for f in files if f.name not in have]
     if missing:

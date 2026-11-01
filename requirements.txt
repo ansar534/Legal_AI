@@ -1,5 +1,5 @@
 # Streamlit UI
-streamlit>=1.36
+streamlit>=1.50
 
 # Data validation
 pydantic>=2

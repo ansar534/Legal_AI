@@ -1,0 +1,36 @@
+# ChatGPT-style palette. Users switch between System / Light / Dark from the
+# top-right "⋮" menu; the default follows the OS setting.
+
+[theme]
+primaryColor = "#10a37f"
+baseRadius = "large"
+showWidgetBorder = true
+
+[theme.light]
+primaryColor = "#10a37f"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f4f4f4"
+textColor = "#0d0d0d"
+borderColor = "#e5e5e5"
+
+[theme.light.sidebar]
+backgroundColor = "#f9f9f9"
+secondaryBackgroundColor = "#ececec"
+
+[theme.dark]
+primaryColor = "#10a37f"
+backgroundColor = "#212121"
+secondaryBackgroundColor = "#303030"
+textColor = "#ececec"
+borderColor = "#3a3a3a"
+
+[theme.dark.sidebar]
+backgroundColor = "#171717"
+secondaryBackgroundColor = "#262626"
+
+[client]
+toolbarMode = "minimal"
+showSidebarNavigation = true
+
+[browser]
+gatherUsageStats = false

@@ -38,6 +38,12 @@ SPEC = FeatureSpec(
         "Identify risky clauses against a curated risk knowledge base. "
         "Optionally upload your own contract to cross-reference."
     ),
+    suggestions=[
+        "Which limitation of liability clauses are high risk?",
+        "What makes an indemnification clause risky?",
+        "Flag the riskiest clauses in my uploaded contract.",
+        "How should I negotiate an auto-renewal clause?",
+    ],
 )
 
 
@@ -232,7 +238,7 @@ def _render_clause_browser() -> None:
         st.caption(f"Showing {len(filtered):,} of {len(df):,} clauses.")
         st.dataframe(
             filtered[["risk_level", "clause_type", "clause_text"]],
-            use_container_width=True,
+            width="stretch",
             hide_index=True,
             height=320,
         )
@@ -243,31 +249,12 @@ def _render_clause_browser() -> None:
 # ---------------------------------------------------------------------------
 
 def _render_chat(kb_retriever, contract_retriever) -> None:
-    history: List[Dict[str, str]] = st.session_state.setdefault(_CHAT_KEY, [])
-
-    for msg in history:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
-    question = st.chat_input("Ask about contract risks...")
-    if not question:
-        return
-
-    history.append({"role": "user", "content": question})
-    with st.chat_message("user"):
-        st.markdown(question)
-
-    with st.chat_message("assistant"):
-        try:
-            with st.spinner("Analysing risks..."):
-                response = build_chain(kb_retriever, contract_retriever).invoke(
-                    {"question": question}
-                )
-            answer = getattr(response, "content", str(response))
-        except Exception as exc:  # noqa: BLE001
-            answer = f"Error: {exc}"
-        st.markdown(answer)
-        history.append({"role": "assistant", "content": answer})
+    ui.chat(
+        SPEC,
+        _CHAT_KEY,
+        lambda: build_chain(kb_retriever, contract_retriever),
+        placeholder="Ask about contract risks...",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -275,13 +262,12 @@ def _render_chat(kb_retriever, contract_retriever) -> None:
 # ---------------------------------------------------------------------------
 
 def render() -> None:
-    st.title(SPEC.title)
-    st.caption(SPEC.description)
+    ui.page_header(SPEC)
+    ui.new_chat_button(_CHAT_KEY)
 
     # Sidebar: optional contract upload (KB is always loaded automatically)
-    st.sidebar.markdown(f"### {SPEC.title}")
-    st.sidebar.caption(SPEC.description)
-    st.sidebar.markdown("**Risk knowledge base:** always loaded automatically.")
+    st.sidebar.markdown("**Documents**")
+    st.sidebar.caption("The risk knowledge base is always loaded automatically.")
 
     uploaded = st.sidebar.file_uploader(
         "Optionally upload your own contract",
@@ -316,20 +302,15 @@ def render() -> None:
         st.session_state.pop(_CONTRACT_KEY, None)
 
     if contract_bundle:
-        st.success(
-            f"Active sources: **risk KB** ({len(kb_bundle['chunks'])} chunks) "
-            f"+ **your contract** `{contract_bundle['filename']}` "
-            f"({len(contract_bundle['chunks'])} chunks)."
-        )
         st.caption(
-            "Questions are answered using BOTH sources. The LLM will "
-            "cross-reference your clauses against the KB."
+            f"Sources: risk KB ({len(kb_bundle['chunks'])} chunks) + "
+            f"`{contract_bundle['filename']}` ({len(contract_bundle['chunks'])} chunks). "
+            "Your clauses are cross-referenced against the KB."
         )
     else:
-        st.info(
-            f"Active source: **risk KB only** "
-            f"({len(kb_bundle['chunks'])} chunks). "
-            f"Upload a contract from the sidebar to add it as a second source."
+        st.caption(
+            f"Source: risk KB only ({len(kb_bundle['chunks'])} chunks). "
+            "Upload a contract from the sidebar to cross-reference it."
         )
 
     _render_clause_browser()

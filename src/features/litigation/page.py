@@ -36,6 +36,12 @@ SPEC = FeatureSpec(
         "Find precedents, legal risks, and recommendations for litigation "
         "questions. Returns a structured answer with cited sources."
     ),
+    suggestions=[
+        "What antitrust violations does the DOJ allege against Google?",
+        "Why did the DOJ challenge the AT&T / T-Mobile merger?",
+        "Compare the Microsoft 1998 and Google 2020 complaints.",
+        "What remedies does the DOJ seek in these cases?",
+    ],
 )
 
 _RETRIEVER_KEY  = "litigation__retriever_bundle"
@@ -118,27 +124,34 @@ def _render_doc_tab(retriever) -> None:
     for entry in history:
         with st.chat_message("user"):
             st.markdown(entry["question"])
-        with st.chat_message("assistant"):
+        with st.chat_message("assistant", avatar=ui.ASSISTANT_AVATAR):
             _render_lit_answer(entry["answer"])
 
-    question = st.chat_input("Ask a litigation question about your documents...")
+    body = st.container()
+    question = ui.take_prompt(
+        _DOC_HISTORY_KEY, "Ask a litigation question about your documents..."
+    )
     if not question:
+        if not history:
+            with body:
+                ui.welcome(SPEC, _DOC_HISTORY_KEY)
         return
 
-    with st.chat_message("user"):
-        st.markdown(question)
+    with body:
+        with st.chat_message("user"):
+            st.markdown(question)
 
-    with st.chat_message("assistant"):
-        try:
-            with st.spinner("Researching your documents..."):
-                answer: LitigationAnswer = build_chain(retriever).invoke(
-                    {"question": question}
-                )
-        except Exception as exc:
-            st.error(f"Error: {exc}")
-            return
-        _render_lit_answer(answer)
-        history.append({"question": question, "answer": answer})
+        with st.chat_message("assistant", avatar=ui.ASSISTANT_AVATAR):
+            try:
+                with st.spinner("Researching your documents..."):
+                    answer: LitigationAnswer = build_chain(retriever).invoke(
+                        {"question": question}
+                    )
+            except Exception as exc:
+                st.error(f"Error: {exc}")
+                return
+            _render_lit_answer(answer)
+            history.append({"question": question, "answer": answer})
 
 
 # ---------------------------------------------------------------------------
@@ -353,8 +366,8 @@ def _render_cl_tab(source: Optional[DataSource]) -> None:
 # ---------------------------------------------------------------------------
 
 def render() -> None:
-    st.title(SPEC.title)
-    st.caption(SPEC.description)
+    ui.page_header(SPEC)
+    ui.new_chat_button(_DOC_HISTORY_KEY)
 
     source = ui.source_picker(SPEC)
 
@@ -362,17 +375,8 @@ def render() -> None:
 
     with tab_docs:
         if source is None:
-            st.info(
-                "Choose **Use existing documents** or upload a litigation PDF "
-                "from the sidebar to get started."
-            )
-        elif not source.files:
-            st.warning("No files selected. Pick at least one from the sidebar.")
+            st.info("Upload a litigation PDF from the sidebar to get started.")
         else:
-            st.markdown(f"**Active source:** {source.label}")
-            with st.expander("Files in scope", expanded=False):
-                for f in source.files:
-                    st.markdown(f"- `{f.name}`")
             bundle = _get_or_build_retriever(source)
             _render_doc_tab(bundle["retriever"])
 
