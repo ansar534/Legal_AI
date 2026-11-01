@@ -54,10 +54,8 @@ jobs:
       - name: Apply manifests and set image
         run: |
           kubectl apply -k k8s/
-          # M6 DEMO ONLY: nonexistent tag forces rollout failure → automatic rollback.
-          # Revert this line to ${{ github.sha }} after the rollback screenshots.
           kubectl set image deployment/"$DEPLOYMENT" \
-            app="$ACR_NAME.azurecr.io/legal-ai-hub:bad-m6-rollback-demo" \
+            app="$ACR_NAME.azurecr.io/legal-ai-hub:${{ github.sha }}" \
             -n "$NAMESPACE"
 
       - name: Wait for rollout
