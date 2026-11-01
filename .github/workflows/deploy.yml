@@ -1,0 +1,103 @@
+name: Deploy
+
+# Terraform (terraform/cicd.tf) federates this workflow's OIDC token for
+# pushes to main in this exact repo — no client secret is stored here.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: rg-legalai
+  AKS_CLUSTER: aks-legalai
+  ACR_NAME: legalai
+  NAMESPACE: legal-ai
+  DEPLOYMENT: legal-ai-hub
+  HEALTH_URL: https://legalai-hub.northcentralus.cloudapp.azure.com/readyz
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Azure for Students blocks ACR Tasks (`az acr build`); build on the
+      # runner and push with docker instead.
+      - name: Build and push image
+        run: |
+          az acr login --name "$ACR_NAME"
+          docker build \
+            -t "$ACR_NAME.azurecr.io/legal-ai-hub:${{ github.sha }}" \
+            .
+          docker push "$ACR_NAME.azurecr.io/legal-ai-hub:${{ github.sha }}"
+
+      - name: Get AKS credentials
+        run: |
+          # Local-account cluster (no AAD); admin kubeconfig is required.
+          az aks get-credentials \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$AKS_CLUSTER" \
+            --admin \
+            --overwrite-existing
+
+      - name: Apply manifests and set image
+        run: |
+          kubectl apply -k k8s/
+          kubectl set image deployment/"$DEPLOYMENT" \
+            app="$ACR_NAME.azurecr.io/legal-ai-hub:${{ github.sha }}" \
+            -n "$NAMESPACE"
+
+      - name: Wait for rollout
+        id: rollout
+        run: kubectl rollout status deployment/"$DEPLOYMENT" -n "$NAMESPACE" --timeout=180s
+
+      - name: External health check
+        id: health
+        if: success()
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS "$HEALTH_URL" | grep -q '"ready": *true'; then
+              echo "healthy"
+              exit 0
+            fi
+            echo "not ready yet, retrying ($i/10)..."
+            sleep 6
+          done
+          echo "health check failed"
+          exit 1
+
+      # Only undo after a failed rollout or health check — never after an
+      # earlier failure (login/build), which would clobber a good revision.
+      - name: Roll back on failed deploy or health check
+        if: failure() && (steps.rollout.outcome == 'failure' || steps.health.outcome == 'failure')
+        run: |
+          echo "::warning::Deployment or health check failed — rolling back."
+          kubectl rollout undo deployment/"$DEPLOYMENT" -n "$NAMESPACE"
+          kubectl rollout status deployment/"$DEPLOYMENT" -n "$NAMESPACE" --timeout=180s
+
+      - name: Verify rollback is healthy
+        if: failure() && (steps.rollout.outcome == 'failure' || steps.health.outcome == 'failure')
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS "$HEALTH_URL" | grep -q '"ready": *true'; then
+              echo "rollback verified healthy"
+              break
+            fi
+            echo "waiting for rolled-back pods to become ready ($i/10)..."
+            sleep 6
+          done
+          # Fail the run regardless, so the pipeline honestly reports the
+          # original deploy as failed even though the cluster is now healthy
+          # again on the previous version.
+          exit 1

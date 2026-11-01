@@ -1,0 +1,34 @@
+# Separate Ingress so Traefik can assign a higher router priority than the
+# catch-all Streamlit "/" route on legal-ai-hub.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: legal-ai-hub-health
+  namespace: legal-ai
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.priority: "100"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - legalai-hub.northcentralus.cloudapp.azure.com
+      secretName: legal-ai-hub-tls
+  rules:
+    - host: legalai-hub.northcentralus.cloudapp.azure.com
+      http:
+        paths:
+          - path: /readyz
+            pathType: Exact
+            backend:
+              service:
+                name: legal-ai-hub
+                port:
+                  name: health
+          - path: /debug
+            pathType: Prefix
+            backend:
+              service:
+                name: legal-ai-hub
+                port:
+                  name: health

@@ -19,3 +19,6 @@ spec:
     - name: http
       port: 80
       targetPort: http
+    - name: health
+      port: 8080
+      targetPort: health

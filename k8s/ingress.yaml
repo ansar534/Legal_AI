@@ -2,6 +2,12 @@
 # legalai-hub.northcentralus.cloudapp.azure.com (k8s/traefik-values.yaml) and
 # redirects every http:// request to https://. cert-manager obtains and renews
 # the Let's Encrypt certificate stored in legal-ai-hub-tls.
+#
+# /readyz and /debug go to the readiness server (port 8080) instead of
+# Streamlit: the CI/CD pipeline's post-deploy health check hits /readyz over
+# the public URL, and /debug/trigger-500 is the controlled-failure endpoint
+# used to demo the log-based 5xx metric and alert. Both only log and return a
+# status code — neither touches the database or any application data.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -26,3 +32,4 @@ spec:
                 name: legal-ai-hub
                 port:
                   name: http
+

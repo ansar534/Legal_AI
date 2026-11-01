@@ -9,6 +9,7 @@ resources:
   - deployment.yaml
   - service.yaml
   - ingress.yaml
+  - ingress-health.yaml
   - hpa.yaml
   - pdb.yaml
   - cluster-issuer.yaml

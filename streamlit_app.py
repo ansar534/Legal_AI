@@ -35,10 +35,12 @@ st.set_page_config(
 # Imported AFTER set_page_config so any cached @st.cache_resource calls
 # triggered at import time are safe.
 from src.core.config import ensure_dirs, load_env  # noqa: E402
+from src.core.logging import configure_logging  # noqa: E402
 from src.core.ui import apply_chat_style  # noqa: E402
 from src.features import FEATURES  # noqa: E402
 
 
+configure_logging()
 load_env()
 ensure_dirs()
 apply_chat_style()

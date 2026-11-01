@@ -20,6 +20,7 @@ Run with ``python -m src.health_server``.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import time
@@ -29,7 +30,10 @@ from typing import Dict, Optional, Tuple
 
 import psycopg
 
+from src.core.logging import configure_logging
 from src.db.connection import conninfo
+
+logger = logging.getLogger("legalai.health")
 
 PORT = int(os.getenv("HEALTH_PORT", "8080"))
 STREAMLIT_HEALTH = f"http://127.0.0.1:{os.getenv('STREAMLIT_SERVER_PORT', '8501')}/_stcore/health"
@@ -83,10 +87,24 @@ READINESS = ReadinessCheck()
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        if self.path != "/readyz":
-            self.send_error(404)
+        if self.path == "/readyz":
+            self._readyz()
             return
+        self.send_error(404)
+
+    def do_POST(self) -> None:
+        if self.path == "/debug/trigger-500":
+            self._trigger_500()
+            return
+        self.send_error(404)
+
+    def _readyz(self) -> None:
         ready, checks = READINESS.result()
+        if not ready:
+            logger.error(
+                "readiness check failed",
+                extra={"status_code": 503, "path": "/readyz", "checks": checks},
+            )
         body = json.dumps({"ready": ready, "checks": checks}).encode()
         self.send_response(200 if ready else 503)
         self.send_header("Content-Type", "application/json")
@@ -98,12 +116,31 @@ class Handler(BaseHTTPRequestHandler):
             # The kubelet gave up after timeoutSeconds; it already counted a failure.
             pass
 
+    def _trigger_500(self) -> None:
+        # Deliberate, demo-only 5xx: logs a JSON error record and returns HTTP
+        # 500 without touching the database or Streamlit. Used to show the
+        # log-based metric and alert firing on a controlled failure.
+        logger.error(
+            "controlled 5xx triggered for demo",
+            extra={"status_code": 500, "path": "/debug/trigger-500"},
+        )
+        body = json.dumps({"triggered": True}).encode()
+        self.send_response(500)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
     def log_message(self, format: str, *args) -> None:
         # One log line per probe every few seconds drowns the app's own logs.
         return
 
 
 def main() -> None:
+    configure_logging()
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
 
 
