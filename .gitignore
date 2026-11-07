@@ -37,5 +37,9 @@ terraform/apply*.txt
 terraform/init_out.txt
 acr_build.txt
 
-# Local Node build deps for submission generators
+# Local Node build deps / generators for submission decks
 submission/node_modules/
+submission/package.json
+submission/package-lock.json
+submission/build_m*.js
+submission/build_m*.py

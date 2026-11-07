@@ -18,24 +18,26 @@ resource "azurerm_monitor_action_group" "main" {
   dynamic "email_receiver" {
     for_each = var.alert_emails
     content {
-      name          = replace(replace(split("@", email_receiver.value)[0], ".", "-"), "_", "-")
-      email_address = email_receiver.value
+      name                    = replace(replace(split("@", email_receiver.value)[0], ".", "-"), "_", "-")
+      email_address           = email_receiver.value
+      use_common_alert_schema = true
     }
   }
 }
 
-# Log-based metric: counts JSON log lines from the legal-ai namespace whose
-# status_code is >= 500. configure_logging() in src/core/logging.py is what
-# guarantees every log line is JSON with that field, including the
-# controlled failure at /debug/trigger-500 (src/health_server.py).
+# Log-based metric: return one row per 5xx JSON log line. Do NOT summarize —
+# `summarize count()` always returns a row (even when count is 0), which keeps
+# a Count>0 alert permanently Fired so Azure never re-notifies. Matching rows
+# only exist when real 5xx logs are present, so the alert can resolve and fire
+# again (and email) on each new incident.
+# AKS Container Insights here writes stdout into ContainerLog.LogEntry.
 locals {
   http_5xx_query = <<-KQL
-    ContainerLogV2
-    | where PodNamespace == "legal-ai"
-    | extend parsed = parse_json(LogMessage)
+    ContainerLog
+    | extend parsed = parse_json(LogEntry)
     | extend status_code = toint(parsed.status_code)
     | where status_code >= 500
-    | summarize count()
+    | project TimeGenerated, LogEntry
   KQL
 }
 
@@ -93,9 +95,8 @@ resource "azurerm_application_insights_workbook" "dashboard" {
         content = {
           version       = "KqlItem/1.0"
           query         = <<-KQL
-            ContainerLogV2
-            | where PodNamespace == "legal-ai"
-            | extend parsed = parse_json(LogMessage)
+            ContainerLog
+            | extend parsed = parse_json(LogEntry)
             | extend status_code = toint(parsed.status_code)
             | where status_code >= 500
             | summarize ["5xx count"] = count() by bin(TimeGenerated, 5m)
